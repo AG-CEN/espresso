@@ -24,4 +24,4 @@ Refer to the [examples/](examples/) directory for complete, runnable pipeline sc
 This project is licensed under the GNU General Public License v3 - see the [LICENSE](LICENSE) file for details.
 
 ### Third-Party Code
-* The ripple detection module in `src/espresso/ripple_detector/` contains algorithm logic adapted from the [FKLab Python Core library](https://bitbucket.org/kloostermannerflab/fklab-python-core) by the Kloosterman Lab.
+* The ripple detection module in `src/espresso/hfo/ripple_detector.py` contains algorithm logic adapted from the [FKLab Python Core library](https://bitbucket.org/kloostermannerflab/fklab-python-core) by the Kloosterman Lab.
