@@ -1,0 +1,51 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "espresso-neuro"
+version = "0.1.0"
+description = "TODO"
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "GPL-3.0-or-later" }
+authors = [{ name = "Espresso Neuro Maintainers" }]
+keywords = [
+    "neuroscience",
+    "electrophysiology",
+    "signal-processing",
+    "lfp",
+    "ripple-detection",
+]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Science/Research",
+    "Topic :: Scientific/Engineering :: Bio-Informatics",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "License :: OSI Approved :: GNU General Public License v3 (GPLv3)",
+    "Operating System :: OS Independent",
+]
+dependencies = [
+    "numpy>=1.24.0",
+    "scipy>=1.10.0",
+    "PyQt6>=6.6.0",
+    "pyqtgraph>=0.13.0",
+    "opencv-python>=4.9.0.0",
+    "pydantic>=2.6.0",
+]
+
+[dependency-groups]
+dev = ["pytest>=8.0.0", "ruff>=0.3.0", "ty>=0.0.35"]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/espresso"]
+
+[tool.hatch.build.targets.wheel.force-include]
+"src/espresso" = "espresso"
+
+[tool.hatch.build.targets.sdist]
+exclude = ["/.github", "/tests", "/examples", ".gitignore"]

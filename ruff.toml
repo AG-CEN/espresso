@@ -1,0 +1,15 @@
+line-length = 88
+target-version = "py310"
+
+[lint]
+select = [
+  "E",   # pycodestyle
+  "F",   # pyflakes
+  "I",   # import sorting
+  "B",   # bugbear
+  "UP",  # pyupgrade
+  "SIM", # simplifications
+]
+
+[format]
+quote-style = "single"
