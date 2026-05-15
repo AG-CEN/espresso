@@ -1,0 +1,33 @@
+name: Build and Check
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+          version: "0.11.14"
+
+      - name: Set up Python
+        run: uv python install 3.13
+
+      - name: Install dependencies from lockfile
+        run: uv sync --frozen
+
+      - name: Run code linter
+        run: uv run make lint
+
+      - name: Verify project build
+        run: uv run make build

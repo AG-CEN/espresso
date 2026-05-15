@@ -5,65 +5,79 @@ from espresso.hfo.ripple_detector import detect_ripples
 from espresso.ui.ripple_viewer import RippleEvent, RippleViewer
 
 
-def run_ripple_analysis() -> None:
-    fs_original = 32000.0
-    duration_seconds = 10.0
-    total_samples = int(fs_original * duration_seconds)
+def inject_ripple(
+    signal: np.ndarray,
+    fs: float,
+    start_time: float,
+    duration: float = 0.2,
+    frequency: float = 200.0,
+    amplitude: float = 4.0,
+) -> None:
+    start_idx = int(start_time * fs)
+    end_idx = start_idx + int(duration * fs)
+    total_samples = end_idx - start_idx
 
-    # Simulated background activity with theta-band oscillation.
-    raw_signal = np.random.normal(0, 0.1, total_samples)
-    theta_wave = (
-        np.sin(2 * np.pi * 8 * np.linspace(0, duration_seconds, total_samples)) * 0.5
-    )
-    raw_signal += theta_wave
-
-    # Inject a synthetic ripple-like burst.
-    burst_start = int(4.0 * fs_original)
-    burst_end = int(4.2 * fs_original)
-    t_burst = np.linspace(0, 0.2, burst_end - burst_start)
+    t_burst = np.linspace(0, duration, total_samples)
     ripple_burst = (
-        np.sin(2 * np.pi * 200 * t_burst) * np.hanning(burst_end - burst_start) * 4.0
+        np.sin(2 * np.pi * frequency * t_burst) * np.hanning(total_samples) * amplitude
     )
-    raw_signal[burst_start:burst_end] += ripple_burst
+    signal[start_idx:end_idx] += ripple_burst
 
-    fs = fs_original
-    epoch_time = len(raw_signal) / fs
-    epoch_min = epoch_time // 60
 
-    timestamps_seconds = np.linspace(0, duration_seconds, total_samples)
+def generate_synthetic_lfp(fs: float, duration: float) -> tuple[np.ndarray, np.ndarray]:
+    total_samples = int(fs * duration)
+    time_axis = np.linspace(0, duration, total_samples)
 
-    # Two-stage decimation: 32 kHz -> 8 kHz -> 2 kHz.
-    data_8khz = decimate(raw_signal, q=4, ftype='iir', zero_phase=True)
+    noise = np.random.normal(0, 0.1, total_samples)
+    theta_oscillation = np.sin(2 * np.pi * 8 * time_axis) * 0.5
+    signal = noise + theta_oscillation
+
+    ripple_protocols = [
+        {'start_time': 2.0, 'frequency': 180.0, 'amplitude': 4.0},
+        {'start_time': 4.5, 'frequency': 200.0, 'amplitude': 3.5},
+        {'start_time': 7.1, 'frequency': 220.0, 'amplitude': 5.0},
+    ]
+
+    for protocol in ripple_protocols:
+        inject_ripple(signal=signal, fs=fs, **protocol)
+
+    return time_axis, signal
+
+
+def run_ripple_analysis() -> None:
+    fs_raw = 32000.0
+    duration_s = 10.0
+
+    timestamps_raw, signal_raw = generate_synthetic_lfp(fs_raw, duration_s)
+
+    data_8khz = decimate(signal_raw, q=4, ftype='iir', zero_phase=True)
     data_2khz = decimate(data_8khz, q=4, ftype='iir', zero_phase=True)
 
-    timestamps_seconds_ds = timestamps_seconds[::16]
+    timestamps_ds = timestamps_raw[::16]
 
-    # Align arrays after decimation edge effects.
-    if len(timestamps_seconds_ds) > len(data_2khz):
-        timestamps_seconds_ds = timestamps_seconds_ds[: len(data_2khz)]
-    elif len(data_2khz) > len(timestamps_seconds_ds):
-        data_2khz = data_2khz[: len(timestamps_seconds_ds)]
-
-    assert len(timestamps_seconds_ds) == len(data_2khz), (
-        'Time and signal lengths mismatch.'
-    )
+    min_len = min(len(timestamps_ds), len(data_2khz))
+    timestamps_ds = timestamps_ds[:min_len]
+    data_2khz = data_2khz[:min_len]
 
     events: list[RippleEvent] = detect_ripples(
-        time=timestamps_seconds_ds,
+        time=timestamps_ds,
         signals=data_2khz,
         threshold_dev=[3, 6],
     )
 
-    print(f'File Duration: {epoch_min}m {epoch_time % 60:.2f}s')
-    print(f'Detected Ripple Peaks: {events[0:5]}')
+    duration_m = duration_s // 60
+    print(f'File Duration: {duration_m:.0f}m {duration_s % 60:.2f}s')
+    print('Detected Ripple Peaks:')
+    for peak in events[:5]:
+        print(peak)
 
-    view = RippleViewer(
-        raw_volts={'channel_0': raw_signal},
+    viewer = RippleViewer(
+        raw_volts={'channel_0': signal_raw},
         ripples={'channel_0': events},
-        fs=fs,
+        fs=fs_raw,
         spect_high=300,
     )
-    view.showMaximized()
+    viewer.showMaximized()
 
 
 if __name__ == '__main__':
