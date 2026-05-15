@@ -478,7 +478,7 @@ class RippleViewer(QWidget):
 
         # 2. Update Spectrogram
 
-        self.nfft: int = max(1, min(self.nfft, len(chunk)))
+        self.nfft:  int = max(1, min(self.nfft, len(chunk)))
         noverlap = int(self.nfft * 0.9)
         noverlap: int =  min(noverlap, self.nfft - 1)
         f, t, sxx = spectrogram(
