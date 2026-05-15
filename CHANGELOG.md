@@ -11,8 +11,6 @@ and this project adheres to [Calendar Versioning](https://calver.org) (YY.MM.DD 
 
 ## [Unreleased]
 
-## [Unreleased]
-
 * 
 
 ## 2026.5.15
