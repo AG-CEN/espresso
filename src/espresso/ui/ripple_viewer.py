@@ -1,10 +1,10 @@
 import sys
+from typing import Any
 
-import cv2
 import numpy as np
 import pyqtgraph as pg
-from pydantic import BaseModel, field_validator, model_validator
 from PyQt6.QtCore import QCoreApplication, Qt
+from PyQt6.QtGui import QPainter
 from PyQt6.QtWidgets import (
     QApplication,
     QDial,
@@ -21,26 +21,7 @@ from PyQt6.QtWidgets import (
 )
 from scipy.signal import butter, hilbert, sosfiltfilt, spectrogram
 
-
-class RippleEvent(BaseModel):
-    # Relative timeline in seconds (Starts at 0.0)
-    start_sec: float
-    end_sec: float
-    peak_sec: float
-
-    @field_validator('end_sec')
-    @classmethod
-    def end_must_be_after_start(cls, v: float, info) -> float:
-        if 'start_sec' in info.data and v <= info.data['start_sec']:
-            raise ValueError('end_sec must be greater than start_sec')
-        return v
-
-    @model_validator(mode='after')
-    def peaks_must_be_within_bounds(self) -> 'RippleEvent':
-        # 1. Check relative bounds
-        if not (self.start_sec <= self.peak_sec <= self.end_sec):
-            raise ValueError(f'peak_sec ({self.peak_sec}) out of bounds')
-        return self
+from espresso.models.ripple_event import RippleEvent
 
 
 class RippleViewer(QWidget):
@@ -49,7 +30,22 @@ class RippleViewer(QWidget):
         raw_volts: dict[str, np.ndarray],
         ripples: dict[str, list[RippleEvent]],
         fs: float,
+        spect_low: int = 1,
+        spect_high: int = 250,
     ):
+        """Visualization of neural signals and detected ripple events.
+
+        Plots raw voltage, filtered band, envelope, spectrograms, and event bounds per
+        channel.
+
+        Args:
+            raw_volts (dict[str, np.ndarray]): Raw voltage arrays per channel name.
+            ripples (dict[str, list[RippleEvent]]): RippleEvent lists per channel name.
+            fs (float): Sampling rate in Hz.
+            spect_low (int, optional): Initial low frequency bound in Hz. Defaults to 1.
+            spect_high (int, optional): Initial high frequency bound in Hz. Defaults to 250.
+        """  # noqa: E501
+
         self.app: QCoreApplication | None = QApplication.instance()
         if self.app is None:
             # Instantiate a fresh app context if none is alive
@@ -71,19 +67,18 @@ class RippleViewer(QWidget):
         pg.setConfigOption('foreground', 'k')
         pg.setConfigOptions(useOpenGL=True)
 
-        self.raw = raw_volts
-        self.ripples = ripples
-        self.fs = fs
+        self.raw: dict[str, np.ndarray[tuple[Any, ...], np.dtype[Any]]] = raw_volts
+        self.ripples: dict[str, list[RippleEvent]] = ripples
+        self.fs: float = fs
+
+        self.spect_low: int = spect_low
+        self.spect_high: int = spect_high
+
         self.current_channel: str = list(raw_volts.keys())[0]
         self.n_samples = len(raw_volts[self.current_channel])
-
-        # High-performance Filter setup
         self.sos = butter(4, [80, 150], btype='band', fs=self.fs, output='sos')
-
-        # --- State Variables ---
         self.current_ripple: int = 0
         self.view_window_sec = 2.0
-        self.spec_low, self.spec_high = 1, 200
         self.nfft = int(self.fs * 0.125)
         self.z_min = -0.5
         self.z_max = 2.0
@@ -173,19 +168,14 @@ class RippleViewer(QWidget):
 
         # 3. Knob Section (Between Spec and Nav)
         self.knob_layout = QGridLayout()
-        self.k_low = self._add_knob('Low Hz', 1, 249, self.spec_low, 0)
+        self.k_low = self._add_knob('Low Hz', 1, 249, self.spect_low, 0)
         self.k_high = self._add_knob(
-            'High Hz', 1, int(self.fs // 2) - 1, self.spec_high, 1
+            'High Hz', 1, int(self.fs // 2) - 1, self.spect_high, 1
         )
         self.k_nfft = self._add_knob('NFFT', 1, int(self.fs * 0.5), self.nfft, 2)
-        self.k_min = self._add_knob(
-            'Z-Min', -50, 50, int(self.z_min * 5), 3, single_step=1
-        )
-        self.k_max = self._add_knob(
-            'Z-Max', -50, 50, int(self.z_max * 5), 4, single_step=1
-        )
+
         self.k_interp = self._add_knob(
-            'Z-Interp', 1, 100, int(self.z_interp // 32), 5, single_step=1
+            'Z-Interp', 1, 100, int(self.z_interp // 32), col=3, single_step=1
         )
 
         knob_widget = QWidget()
@@ -241,6 +231,13 @@ class RippleViewer(QWidget):
         self.img = pg.ImageItem()
         self.img.setLookupTable(pg.colormap.get('turbo').getLookupTable())
         self.p_spec.addItem(self.img)
+
+        # Color Bar for the spectogram
+        self.colorbar = pg.ColorBarItem(
+            values=(self.z_min, self.z_max), colorMap='turbo'
+        )
+        self.colorbar.setImageItem(self.img)
+        self.win.addItem(self.colorbar, 3, 1)
 
         self.v_lines = []
         for p in [self.p_raw, self.p_filt, self.p_env, self.p_spec]:
@@ -310,11 +307,9 @@ class RippleViewer(QWidget):
         return k
 
     def _update_knob_labels(self) -> None:
-        self._update_knob_label(self.k_low, self.spec_low)
-        self._update_knob_label(self.k_high, self.spec_high)
+        self._update_knob_label(self.k_low, self.spect_low)
+        self._update_knob_label(self.k_high, self.spect_high)
         self._update_knob_label(self.k_nfft, self.nfft)
-        self._update_knob_label(self.k_max, self.z_max)
-        self._update_knob_label(self.k_min, self.z_min)
         self._update_knob_label(self.k_interp, self.z_interp)
 
     def _update_knob_label(self, knob, new_value):
@@ -324,11 +319,9 @@ class RippleViewer(QWidget):
             knob_label.setText(f'{prefix}: {new_value}')
 
     def _on_knob_changed(self) -> None:
-        self.spec_low = self.k_low.value()
-        self.spec_high = self.k_high.value()
+        self.spect_low = self.k_low.value()
+        self.spect_high = self.k_high.value()
         self.nfft = self.k_nfft.value()
-        self.z_min = self.k_min.value() / 5
-        self.z_max = self.k_max.value() / 5
         self.z_interp = self.k_interp.value() * 32
         self._update_knob_labels()
         # TODO(ben): debounce this to prevent excessive rendering during knob adjustment
@@ -484,14 +477,13 @@ class RippleViewer(QWidget):
 
         # 2. Update Spectrogram
 
-        # apply lowpass filter
-        self.nfft = min(self.nfft, len(chunk))
+        self.nfft: int = max(1, min(self.nfft, len(chunk)))
         noverlap = int(self.nfft * 0.9)
-        noverlap = min(noverlap, self.nfft - 1)
+        noverlap: int = min(noverlap, self.nfft - 1)
         f, t, sxx = spectrogram(
             chunk, fs=self.fs, nperseg=self.nfft, noverlap=noverlap, window='hann'
         )
-        mask = (f >= self.spec_low) & (f <= self.spec_high)
+        mask = (f >= self.spect_low) & (f <= self.spect_high)
 
         if np.any(mask):
             s_log = 10 * np.log10(sxx[mask, :] + 1e-12)
@@ -499,22 +491,20 @@ class RippleViewer(QWidget):
                 np.std(s_log, axis=1, keepdims=True) + 1e-6
             )
 
-            target_w, target_h = self.z_interp, self.z_interp
-            smooth_data = cv2.resize(
-                s_z, (target_w, target_h), interpolation=cv2.INTER_LINEAR
-            )
+            self.img.setImage(s_z.T, levels=[self.z_min, self.z_max])
 
-            self.img.setImage(smooth_data.T, levels=[self.z_min, self.z_max])
+            self.win.setRenderHint(QPainter.RenderHint.Antialiasing, True)
+            self.win.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform, True)
 
             self.img.setRect(
                 pg.QtCore.QRectF(
                     float(s_sec),
-                    float(self.spec_low),
+                    float(self.spect_low),
                     float(e_sec - s_sec),
-                    float(self.spec_high - self.spec_low),
+                    float(self.spect_high - self.spect_low),
                 )
             )
-            self.p_spec.setYRange(self.spec_low, self.spec_high, padding=0)
+            self.p_spec.setYRange(self.spect_low, self.spect_high, padding=0)
 
     def keyPressEvent(self, a0):  # noqa: N802
         if a0.key() == Qt.Key.Key_Right:

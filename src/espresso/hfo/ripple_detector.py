@@ -3,12 +3,16 @@
 # Licensed under the GNU General Public License v3. See the root LICENSE file.
 
 import operator
+from collections.abc import Callable, Sequence
 from functools import reduce
-from typing import cast
+from typing import Any, cast
 
 import numpy as np
+import numpy.typing as npt
 import scipy as sp
 import scipy.signal
+
+from espresso.models.ripple_event import RippleEvent
 
 
 def segment_sort(segments):
@@ -3257,77 +3261,47 @@ def ripple_envelope(signals, band='ripple', **kwargs):
 
 
 def detect_ripples(
-    time,
-    signals,
-    axis=-1,
-    band='ripple',
-    isenvelope=False,
-    isfiltered=False,
-    segments=None,
-    threshold=None,
-    threshold_dev=None,
-    allowable_gap=0.02,
-    minimum_duration=0.03,
-    filter_options=None,
-    smooth_options=None,
-):
+    time: npt.NDArray[np.float64],
+    signals: npt.NDArray[np.float64],
+    axis: int = -1,
+    band: str | Sequence[float] = 'ripple',
+    isenvelope: bool = False,
+    isfiltered: bool = False,
+    segments: Any = None,
+    threshold: float
+    | Sequence[float]
+    | Callable[[npt.NDArray[np.float64]], Sequence[float]]
+    | None = None,
+    threshold_dev: Sequence[float] | None = None,
+    allowable_gap: float = 0.02,
+    minimum_duration: float = 0.03,
+    filter_options: dict[str, Any] | None = None,
+    smooth_options: dict[str, Any] | None = None,
+) -> list[RippleEvent]:
+    """Detect high-frequency ripple events in multi-channel data streams.
+
+    Args:
+        time: 1D array of timestamps in seconds.
+        signals: Raw, filtered, or pre-computed envelope signal array.
+        axis: Time dimension index in the signals array.
+        band: Target frequency band string or [low, high] sequence.
+        isenvelope: True if signals is already a pre-computed envelope.
+        isfiltered: True if signals is already filtered.
+        segments: Array-like constraints to restrict detection boundaries.
+        threshold: Absolute value cutoffs or dynamic callable threshold generator.
+        threshold_dev: Median-based deviation scaling parameters [low, high].
+        allowable_gap: Max gap in seconds to merge adjacent events.
+        minimum_duration: Min duration in seconds to keep an event.
+        filter_options: Backend parameters passed to the signal filter.
+        smooth_options: Backend parameters passed to the envelope smoother.
+        device_start_us: Baseline DAQ hardware clock timestamp in microseconds.
+
+    Returns:
+        List of validated RippleEvent Pydantic models.
     """
-    Detect ripple events.
-
-    Parameters
-    ----------
-    time : 1D array
-    signal : array
-        either an array of raw signals (`isenvelope`==False and
-        `isfiltered`==False), or an array of already filtered signals
-        (`isenvelope`==False, `isfiltered`==True) or a 1D array with
-        pre-computed envelope (`isenvelope`==True)
-    axis : scalar, optional
-        axis of the time dimension in the signal array (not used if
-        signal is already a pre-computed envelope)
-    band : str or 2-element sequence, frequency band (in case signal needs to filtered)
-    isenvelope : bool, optional
-    isfiltered : bool, optional
-    segments : segment-like
-        restrict detection of ripples to segments
-    threshold : scalar, 2-element sequence or callable, optional
-        single upper threshold or [lower, upper] threshold for ripple
-        detection. If a callable, the function should accept a 1D array
-        and return a 1 or 2-element sequence of thresholds, computed from
-        the input array
-    threshold_dev : 2-element sequence, optional
-        compute threshold values based on median value, elements will be used
-        for computing the low and high thresholds respectively
-    allowable_gap : scalar, optional
-        minimum gap between adjacent ripples. If the start of a ripple
-        is within `allowable_gap` of a the end of previous ripple, then
-        the two ripple events are merged.
-    minimum_duration : scalar, optional
-        minimum duration of a ripple event. Shorter duration events are
-        dicarded.
-    filter_options : dict, optional
-        dictionary with options for filtering (if signal is not already filtered).
-        See `apply_filter` and `construct_filter`.
-    smooth_options : dict, optional
-        dictionary with options for envelope smoothing (if envelope was
-        not pre-computed). See `ripple_envelope`.
-
-    Returns
-    -------
-    (peak_time, peak_amp) : 1D arrays
-        time and amplitude of ripple peaks above upper threshold
-    segments : Segment
-        ripple start and end times
-    (low,high) : scalars
-        lower and upper threshold used for ripple detection
-
-    """
-
-    if smooth_options is None:
-        smooth_options = {}
-    if filter_options is None:
-        filter_options = {}
-    dt = np.median(np.diff(time))
+    opts_smooth = smooth_options or {}
+    opts_filter = filter_options or {}
+    dt = float(np.median(np.diff(time)))
 
     if not isenvelope:
         envelope = ripple_envelope(
@@ -3336,60 +3310,63 @@ def detect_ripples(
             axis=axis,
             fs=1.0 / dt,
             isfiltered=isfiltered,
-            filter_options=filter_options,
-            smooth_options=smooth_options,
+            filter_options=opts_filter,
+            smooth_options=opts_smooth,
         )
     else:
         envelope = signals
         if envelope.ndim != 1:
-            raise ValueError('Envelope needs to be a vector.')
+            raise ValueError('Envelope needs to be a 1D vector.')
 
-    # compute signal statistics in segments
-    # and determine thresholds
-    if segments is None:
-        segments = [-np.inf, np.inf]
-
-    segments = check_segments(segments)
-
-    b, _, _ = segment_contains(segments, time)
+    search_segments = check_segments(
+        segments if segments is not None else [-np.inf, np.inf]
+    )
+    in_segment, _, _ = segment_contains(search_segments, time)
 
     if threshold is None and threshold_dev is None:
-        mean = np.mean(envelope[b])
-        dev = np.std(envelope[b])
-        thr_low = mean + dev
-        thr_high = mean + 4 * dev
-        threshold = [thr_low, thr_high]
+        mean = float(np.mean(envelope[in_segment]))
+        dev = float(np.std(envelope[in_segment]))
+        calc_threshold = [mean + dev, mean + 4.0 * dev]
     elif threshold_dev is not None:
-        median = np.median(envelope)
-        dev = median - envelope.min()
-        threshold = dev * np.array(threshold_dev) + median
+        median = float(np.median(envelope))
+        dev = median - float(envelope.min())
+        calc_threshold = (dev * np.array(threshold_dev) + median).tolist()
     elif callable(threshold):
-        threshold = threshold(envelope[b])
+        calc_threshold = list(threshold(envelope[in_segment]))
     else:
-        threshold = np.asanyarray(threshold, dtype=np.float64, copy=None).ravel()
+        calc_threshold = np.asanyarray(threshold, dtype=np.float64).ravel().tolist()
 
-    low = cast(list, threshold)[0]
-    high = cast(list, threshold)[-1]
+    low = float(calc_threshold[0])
+    high = float(calc_threshold[-1])
 
-    # find ripple peaks
-    ripple_peak_time, ripple_peak_amp = localmaxima(
+    ripple_peak_time, _ = localmaxima(
         envelope, x=time, method='gradient', yrange=[high, np.inf]
     )
 
-    # find bumps
     ripple_segments = detect_mountains(
-        envelope, x=time, low=low, high=high, segments=segments
+        envelope, x=time, low=low, high=high, segments=search_segments
     )
 
-    # join nearby bumps
     ripple_segments.ijoin(gap=allowable_gap)
-
-    # eliminate short duration bumps
     del ripple_segments[ripple_segments.duration < minimum_duration]
 
-    # only retain ripple peaks within segments
-    selection = ripple_segments.contains(ripple_peak_time)[0]
-    ripple_peak_time = ripple_peak_time[selection]
-    ripple_peak_amp = ripple_peak_amp[selection]
+    events: list[RippleEvent] = []
+    for start, end in zip(
+        ripple_segments.start,
+        ripple_segments.stop,
+        strict=False,
+    ):
+        mask = (ripple_peak_time >= start) & (ripple_peak_time <= end)
+        matching_peaks = ripple_peak_time[mask]
 
-    return (ripple_peak_time, ripple_peak_amp), ripple_segments, (low, high)
+        if matching_peaks.size > 0:
+            peak = float(matching_peaks[0])
+            events.append(
+                RippleEvent(
+                    start_sec=float(start),
+                    end_sec=float(end),
+                    peak_sec=peak,
+                )
+            )
+
+    return events

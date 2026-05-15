@@ -1,6 +1,6 @@
 # espresso
 
-A Python framework designed for processing high-density electrophysiology signals across multi-channel LFP, EEG, and MEG recording arrays.
+A Python framework for preprocessing, processing, visualization, event detection, and event curation of high-density time-series signals and multi-channel data streams.
 
 ### Key Capabilities
 * **Signal Preprocessing:** Optimized digital filtering pipelines and artifact rejection workflows.
