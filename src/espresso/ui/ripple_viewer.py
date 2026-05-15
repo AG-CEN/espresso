@@ -19,7 +19,6 @@ from PyQt6.QtWidgets import (
     QVBoxLayout,
     QWidget,
 )
-from scipy.interpolate import RegularGridInterpolator
 from scipy.signal import butter, hilbert, sosfiltfilt, spectrogram
 
 from espresso.models.ripple_event import RippleEvent
@@ -478,9 +477,9 @@ class RippleViewer(QWidget):
 
         # 2. Update Spectrogram
 
-        self.nfft:  int = max(1, min(self.nfft, len(chunk)))
+        self.nfft: int = max(1, min(self.nfft, len(chunk)))
         noverlap = int(self.nfft * 0.9)
-        noverlap: int =  min(noverlap, self.nfft - 1)
+        noverlap: int = min(noverlap, self.nfft - 1)
         f, t, sxx = spectrogram(
             chunk, fs=self.fs, nperseg=self.nfft, noverlap=noverlap, window='hann'
         )
@@ -506,19 +505,6 @@ class RippleViewer(QWidget):
                 )
             )
             self.p_spec.setYRange(self.spect_low, self.spect_high, padding=0)
-
-    def _interpolate_spectrogram(self, data: np.ndarray) -> np.ndarray:
-        orig_h, orig_w = data.shape
-        old_y = np.linspace(0, 1, orig_h)
-        old_x = np.linspace(0, 1, orig_w)
-
-        interp_func = RegularGridInterpolator((old_y, old_x), data, method='linear')
-
-        new_y = np.linspace(0, 1, self.z_interp)
-        new_x = np.linspace(0, 1, self.z_interp)
-        new_grid = np.meshgrid(new_y, new_x, indexing='ij')
-
-        return interp_func(np.stack(new_grid, axis=-1))
 
     def keyPressEvent(self, a0):  # noqa: N802
         if a0.key() == Qt.Key.Key_Right:
