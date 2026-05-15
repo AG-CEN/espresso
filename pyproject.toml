@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "espresso-neuro"
-version = "26.5.14"
+version = "26.5.15"
 description = "A framework for preprocessing, processing, visualization, event detection, and event curation of high-density time-series signals and multi-channel data streams."
 readme = "README.md"
 requires-python = ">=3.13"
