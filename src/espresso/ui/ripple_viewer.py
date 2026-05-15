@@ -1,10 +1,10 @@
 import sys
 from typing import Any
 
-import cv2
 import numpy as np
 import pyqtgraph as pg
 from PyQt6.QtCore import QCoreApplication, Qt
+from PyQt6.QtGui import QPainter
 from PyQt6.QtWidgets import (
     QApplication,
     QDial,
@@ -19,6 +19,7 @@ from PyQt6.QtWidgets import (
     QVBoxLayout,
     QWidget,
 )
+from scipy.interpolate import RegularGridInterpolator
 from scipy.signal import butter, hilbert, sosfiltfilt, spectrogram
 
 from espresso.models.ripple_event import RippleEvent
@@ -173,14 +174,9 @@ class RippleViewer(QWidget):
             'High Hz', 1, int(self.fs // 2) - 1, self.spect_high, 1
         )
         self.k_nfft = self._add_knob('NFFT', 1, int(self.fs * 0.5), self.nfft, 2)
-        self.k_min = self._add_knob(
-            'Z-Min', -50, 50, int(self.z_min * 5), 3, single_step=1
-        )
-        self.k_max = self._add_knob(
-            'Z-Max', -50, 50, int(self.z_max * 5), 4, single_step=1
-        )
+
         self.k_interp = self._add_knob(
-            'Z-Interp', 1, 100, int(self.z_interp // 32), 5, single_step=1
+            'Z-Interp', 1, 100, int(self.z_interp // 32), col=3, single_step=1
         )
 
         knob_widget = QWidget()
@@ -236,6 +232,13 @@ class RippleViewer(QWidget):
         self.img = pg.ImageItem()
         self.img.setLookupTable(pg.colormap.get('turbo').getLookupTable())
         self.p_spec.addItem(self.img)
+
+        # Color Bar for the spectogram
+        self.colorbar = pg.ColorBarItem(
+            values=(self.z_min, self.z_max), colorMap='turbo'
+        )
+        self.colorbar.setImageItem(self.img)
+        self.win.addItem(self.colorbar, 3, 1)
 
         self.v_lines = []
         for p in [self.p_raw, self.p_filt, self.p_env, self.p_spec]:
@@ -308,8 +311,6 @@ class RippleViewer(QWidget):
         self._update_knob_label(self.k_low, self.spect_low)
         self._update_knob_label(self.k_high, self.spect_high)
         self._update_knob_label(self.k_nfft, self.nfft)
-        self._update_knob_label(self.k_max, self.z_max)
-        self._update_knob_label(self.k_min, self.z_min)
         self._update_knob_label(self.k_interp, self.z_interp)
 
     def _update_knob_label(self, knob, new_value):
@@ -322,8 +323,6 @@ class RippleViewer(QWidget):
         self.spect_low = self.k_low.value()
         self.spect_high = self.k_high.value()
         self.nfft = self.k_nfft.value()
-        self.z_min = self.k_min.value() / 5
-        self.z_max = self.k_max.value() / 5
         self.z_interp = self.k_interp.value() * 32
         self._update_knob_labels()
         # TODO(ben): debounce this to prevent excessive rendering during knob adjustment
@@ -479,7 +478,6 @@ class RippleViewer(QWidget):
 
         # 2. Update Spectrogram
 
-        # apply lowpass filter
         self.nfft = min(self.nfft, len(chunk))
         noverlap = int(self.nfft * 0.9)
         noverlap = min(noverlap, self.nfft - 1)
@@ -494,12 +492,10 @@ class RippleViewer(QWidget):
                 np.std(s_log, axis=1, keepdims=True) + 1e-6
             )
 
-            target_w, target_h = self.z_interp, self.z_interp
-            smooth_data = cv2.resize(
-                s_z, (target_w, target_h), interpolation=cv2.INTER_LINEAR
-            )
+            self.img.setImage(s_z.T, levels=[self.z_min, self.z_max])
 
-            self.img.setImage(smooth_data.T, levels=[self.z_min, self.z_max])
+            self.win.setRenderHint(QPainter.RenderHint.Antialiasing, True)
+            self.win.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform, True)
 
             self.img.setRect(
                 pg.QtCore.QRectF(
@@ -510,6 +506,19 @@ class RippleViewer(QWidget):
                 )
             )
             self.p_spec.setYRange(self.spect_low, self.spect_high, padding=0)
+
+    def _interpolate_spectrogram(self, data: np.ndarray) -> np.ndarray:
+        orig_h, orig_w = data.shape
+        old_y = np.linspace(0, 1, orig_h)
+        old_x = np.linspace(0, 1, orig_w)
+
+        interp_func = RegularGridInterpolator((old_y, old_x), data, method='linear')
+
+        new_y = np.linspace(0, 1, self.z_interp)
+        new_x = np.linspace(0, 1, self.z_interp)
+        new_grid = np.meshgrid(new_y, new_x, indexing='ij')
+
+        return interp_func(np.stack(new_grid, axis=-1))
 
     def keyPressEvent(self, a0):  # noqa: N802
         if a0.key() == Qt.Key.Key_Right:

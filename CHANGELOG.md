@@ -19,6 +19,7 @@ and this project adheres to [Calendar Versioning](https://calver.org) (YY.MM.DD 
 
 * Added project URLs to pyproject.toml.
 * Adjusted return type of the ripple detector.
+* Replaced cv2 dependency for spectogram smoothing with internal PyQt6 solution.
 
 
 ## 2026.5.14
