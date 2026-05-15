@@ -48,29 +48,20 @@ def run_ripple_analysis() -> None:
         'Time and signal lengths mismatch.'
     )
 
-    (ripple_peak_time, _), ripple_segments, (low, high) = detect_ripples(
+    events: list[RippleEvent] = detect_ripples(
         time=timestamps_seconds_ds,
         signals=data_2khz,
         threshold_dev=[3, 6],
     )
 
     print(f'File Duration: {epoch_min}m {epoch_time % 60:.2f}s')
-    print(f'Detected Ripple Peaks: {ripple_peak_time}')
-
-    events: list[RippleEvent] = [
-        RippleEvent(start_sec=float(s), end_sec=float(e), peak_sec=float(p))
-        for s, e, p in zip(
-            ripple_segments.start,
-            ripple_segments.stop,
-            ripple_peak_time,
-            strict=True,
-        )
-    ]
+    print(f'Detected Ripple Peaks: {events[0:5]}')
 
     view = RippleViewer(
         raw_volts={'channel_0': raw_signal},
         ripples={'channel_0': events},
         fs=fs,
+        spect_high=300,
     )
     view.showMaximized()
 

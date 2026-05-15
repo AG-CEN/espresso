@@ -7,7 +7,7 @@ name = "espresso-neuro"
 version = "26.5.14"
 description = "A framework for preprocessing, processing, visualization, event detection, and event curation of high-density time-series signals and multi-channel data streams."
 readme = "README.md"
-requires-python = ">=3.10"
+requires-python = ">=3.13"
 license = { text = "GPL-3.0-or-later" }
 authors = [{ name = "Espresso Neuro Maintainers" }]
 keywords = [
@@ -30,16 +30,21 @@ classifiers = [
     "Operating System :: OS Independent",
 ]
 dependencies = [
-    "numpy>=1.24.0",
-    "scipy>=1.10.0",
-    "PyQt6>=6.6.0",
-    "pyqtgraph>=0.13.0",
-    "opencv-python>=4.9.0.0",
-    "pydantic>=2.6.0",
+    "numpy>=2.4.4",
+    "scipy>=1.17.1",
+    "PyQt6>=6.11.0",
+    "pyqtgraph>=0.14.0",
+    "opencv-python>=4.13.0.92",
+    "pydantic>=2.13.4",
 ]
 
+[project.urls]
+Repository = "https://github.com/AG-CEN/espresso"
+Issues = "https://github.com/AG-CEN/espresso/issues"
+Changelog = "https://github.com/AG-CEN/espresso/blob/master/CHANGELOG.md"
+
 [dependency-groups]
-dev = ["pytest>=8.0.0", "ruff>=0.3.0", "ty>=0.0.35"]
+dev = ["pytest==9.0.3", "ruff==0.15.13", "ty==0.0.36"]
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/espresso"]
