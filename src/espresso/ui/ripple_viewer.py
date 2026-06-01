@@ -55,16 +55,16 @@ class RippleViewer(QWidget):
             self._owns_app = False
 
         if not raw_volts:
-            raise ValueError('raw_volts cannot be empty')
+            raise ValueError("raw_volts cannot be empty")
         if fs <= 0:
-            raise ValueError('Sampling frequency must be positive')
+            raise ValueError("Sampling frequency must be positive")
 
         if set(ripples.keys()) - set(raw_volts.keys()):
-            raise ValueError('Ripples contain channels not present in raw_volts')
+            raise ValueError("Ripples contain channels not present in raw_volts")
 
         super().__init__()
-        pg.setConfigOption('background', 'w')
-        pg.setConfigOption('foreground', 'k')
+        pg.setConfigOption("background", "w")
+        pg.setConfigOption("foreground", "k")
         pg.setConfigOptions(useOpenGL=True)
 
         self.raw: dict[str, np.ndarray[tuple[Any, ...], np.dtype[Any]]] = raw_volts
@@ -76,7 +76,7 @@ class RippleViewer(QWidget):
 
         self.current_channel: str = list(raw_volts.keys())[0]
         self.n_samples = len(raw_volts[self.current_channel])
-        self.sos = butter(4, [80, 150], btype='band', fs=self.fs, output='sos')
+        self.sos = butter(4, [80, 150], btype="band", fs=self.fs, output="sos")
         self.current_ripple: int = 0
         self.view_window_sec = 2.0
         self.nfft = int(self.fs * 0.125)
@@ -93,35 +93,35 @@ class RippleViewer(QWidget):
         top_layout = QHBoxLayout()
 
         # --- Left: Channel Buttons ---
-        self.prev_ch_btn = QPushButton('Ch -')
-        self.next_ch_btn = QPushButton('Ch +')
+        self.prev_ch_btn = QPushButton("Ch -")
+        self.next_ch_btn = QPushButton("Ch +")
         self.ch_input = QLineEdit(self.current_channel)
         self.ch_input.setFixedWidth(80)
         self.ch_input.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.ch_input.setStyleSheet("""
             QLineEdit {
-                font-weight: bold; 
-                font-size: 14px; 
-                border: 1px solid #999; 
+                font-weight: bold;
+                font-size: 14px;
+                border: 1px solid #999;
                 border-radius: 4px;
                 padding: 2px;
             }
         """)
         # --- Middle: Info Label ---
-        self.info_label = QLabel('0/0')
-        self.info_label.setStyleSheet('font-weight: bold; font-size: 14px;')
+        self.info_label = QLabel("0/0")
+        self.info_label.setStyleSheet("font-weight: bold; font-size: 14px;")
 
         # --- Right: Ripple Buttons ---
-        self.prev_btn = QPushButton('<')
-        self.next_btn = QPushButton('>')
+        self.prev_btn = QPushButton("<")
+        self.next_btn = QPushButton(">")
 
         # Styling
         all_btns = [self.prev_ch_btn, self.next_ch_btn, self.prev_btn, self.next_btn]
         for b in all_btns:
-            width = 60 if 'Ch' in b.text() else 40
+            width = 60 if "Ch" in b.text() else 40
             b.setFixedSize(width, 30)
             b.setStyleSheet(
-                'font-weight: bold; border: 1px solid #999; border-radius: 4px;'
+                "font-weight: bold; border: 1px solid #999; border-radius: 4px;"
             )
 
         # Layout Assembly
@@ -149,39 +149,39 @@ class RippleViewer(QWidget):
         layout.addWidget(self.win)
         pg.setConfigOptions(useOpenGL=True, antialias=True)
 
-        self.p_raw = self._add_grilled_plot(0, 'Raw LFP')
-        self.p_filt = self._add_grilled_plot(1, 'Filtered')
-        self.p_env = self._add_grilled_plot(2, 'Envelope')
+        self.p_raw = self._add_grilled_plot(0, "Raw LFP")
+        self.p_filt = self._add_grilled_plot(1, "Filtered")
+        self.p_env = self._add_grilled_plot(2, "Envelope")
         self.p_spec = self._add_grilled_plot(
-            3, 'Spectrogram', grid_color=(190, 190, 190)
+            3, "Spectrogram", grid_color=(190, 190, 190)
         )
 
-        self.c_raw_hi = self.p_raw.plot(pen=pg.mkPen('r', width=2.0))
-        self.c_filt_hi = self.p_filt.plot(pen=pg.mkPen('r', width=2.0))
-        self.c_env_hi = self.p_env.plot(pen=pg.mkPen('r', width=2.0))
+        self.c_raw_hi = self.p_raw.plot(pen=pg.mkPen("r", width=2.0))
+        self.c_filt_hi = self.p_filt.plot(pen=pg.mkPen("r", width=2.0))
+        self.c_env_hi = self.p_env.plot(pen=pg.mkPen("r", width=2.0))
 
-        self.p_raw.setLabel('left', 'Voltage', units='µV')
-        self.p_filt.setLabel('left', 'Filtered', units='µV')
-        self.p_env.setLabel('left', 'Envelope', units='µV')
-        self.p_spec.setLabel('bottom', 'Time', units='s')
-        self.p_raw.setLabel('left', 'Voltage', units='µV')
+        self.p_raw.setLabel("left", "Voltage", units="µV")
+        self.p_filt.setLabel("left", "Filtered", units="µV")
+        self.p_env.setLabel("left", "Envelope", units="µV")
+        self.p_spec.setLabel("bottom", "Time", units="s")
+        self.p_raw.setLabel("left", "Voltage", units="µV")
 
         # 3. Knob Section (Between Spec and Nav)
         self.knob_layout = QGridLayout()
-        self.k_low = self._add_knob('Low Hz', 1, 249, self.spect_low, 0)
+        self.k_low = self._add_knob("Low Hz", 1, 249, self.spect_low, 0)
         self.k_high = self._add_knob(
-            'High Hz', 1, int(self.fs // 2) - 1, self.spect_high, 1
+            "High Hz", 1, int(self.fs // 2) - 1, self.spect_high, 1
         )
-        self.k_nfft = self._add_knob('NFFT', 1, int(self.fs * 0.5), self.nfft, 2)
+        self.k_nfft = self._add_knob("NFFT", 1, int(self.fs * 0.5), self.nfft, 2)
 
         self.k_interp = self._add_knob(
-            'Z-Interp', 1, 100, int(self.z_interp // 32), col=3, single_step=1
+            "Z-Interp", 1, 100, int(self.z_interp // 32), col=3, single_step=1
         )
 
         knob_widget = QWidget()
         knob_widget.setLayout(self.knob_layout)
         knob_widget.setMaximumHeight(90)
-        knob_widget.setStyleSheet('background-color: transparent;')
+        knob_widget.setStyleSheet("background-color: transparent;")
         knob_proxy = QGraphicsProxyWidget()
         knob_proxy.setMinimumHeight(90)
         knob_proxy.setWidget(knob_widget)
@@ -191,8 +191,8 @@ class RippleViewer(QWidget):
         self.p_nav = self.win.addPlot(row=5, col=0)  # ty:ignore[unresolved-attribute]
         self.p_nav.setMaximumHeight(40)
         self.p_nav.setMouseEnabled(y=False)
-        self.p_nav.hideAxis('left')
-        self.p_nav.hideAxis('bottom')
+        self.p_nav.hideAxis("left")
+        self.p_nav.hideAxis("bottom")
         total_duration = self.n_samples / self.fs
         self.p_nav.setLimits(xMin=0, xMax=total_duration, minXRange=total_duration)
         self.p_nav.getViewBox().setBackgroundColor(pg.mkColor(100, 100, 100, 25))
@@ -200,7 +200,7 @@ class RippleViewer(QWidget):
         # Pre-decimated background signal for nav bar
         dec = max(500, self.n_samples // 5000)
         nav_x = np.arange(0, self.n_samples, dec) / self.fs
-        self.p_nav.plot(nav_x, self.raw[self.current_channel][::dec], pen='k')
+        self.p_nav.plot(nav_x, self.raw[self.current_channel][::dec], pen="k")
 
         # Draw ripples as horizontal bars
         if self.ripples[self.current_channel]:
@@ -209,7 +209,7 @@ class RippleViewer(QWidget):
                 end_sec = ripple.end_sec
                 width = max(0.001, end_sec - start_sec)
                 item = QGraphicsRectItem(start_sec, -1, width, 2)
-                item.setPen(pg.mkPen('r', width=0.5))
+                item.setPen(pg.mkPen("r", width=0.5))
                 item.setBrush(pg.mkBrush(255, 0, 0, 100))
 
                 self.p_nav.addItem(item)
@@ -218,7 +218,7 @@ class RippleViewer(QWidget):
         self.nav_line = pg.InfiniteLine(
             pos=0,
             movable=False,  # Disable dragging
-            pen=pg.mkPen('r', width=2),
+            pen=pg.mkPen("r", width=2),
         )
         self.nav_line.setAcceptHoverEvents(False)
         self.p_nav.addItem(self.nav_line)
@@ -229,12 +229,12 @@ class RippleViewer(QWidget):
         self.c_env = self.p_env.plot(pen=pg.mkPen((33, 33, 33), width=1))
 
         self.img = pg.ImageItem()
-        self.img.setLookupTable(pg.colormap.get('turbo').getLookupTable())
+        self.img.setLookupTable(pg.colormap.get("turbo").getLookupTable())
         self.p_spec.addItem(self.img)
 
         # Color Bar for the spectogram
         self.colorbar = pg.ColorBarItem(
-            values=(self.z_min, self.z_max), colorMap='turbo'
+            values=(self.z_min, self.z_max), colorMap="turbo"
         )
         self.colorbar.setImageItem(self.img)
         self.win.addItem(self.colorbar, 3, 1)
@@ -271,14 +271,14 @@ class RippleViewer(QWidget):
         self.nav_line.blockSignals(False)
         self.render_all()
 
-    def _add_grilled_plot(self, row, title, grid_color='k'):
+    def _add_grilled_plot(self, row, title, grid_color="k"):
         p = self.win.addPlot(row=row, col=0, title=title)  # ty:ignore[unresolved-attribute]
         p.showGrid(x=True, y=True, alpha=0.5)
         p.setMouseEnabled(y=False)
         grid_pen = pg.mkPen(color=grid_color, width=1)
 
-        p.getAxis('bottom').setPen(grid_pen)
-        p.getAxis('left').setPen(grid_pen)
+        p.getAxis("bottom").setPen(grid_pen)
+        p.getAxis("left").setPen(grid_pen)
         # Lock by capping horizontal zoom out
         p.setLimits(
             xMin=0, xMax=self.n_samples / self.fs, maxXRange=self.view_window_sec
@@ -295,8 +295,8 @@ class RippleViewer(QWidget):
         k.setSingleStep(single_step)
         k.setNotchesVisible(True)
         k.valueChanged.connect(self._on_knob_changed)
-        val_lbl = QLabel(f'{label}: {cur_v}')
-        val_lbl.setStyleSheet('font-size: 14px; color: #666;')
+        val_lbl = QLabel(f"{label}: {cur_v}")
+        val_lbl.setStyleSheet("font-size: 14px; color: #666;")
         val_lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
         val_lbl.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Preferred)
         self.knob_labels[id(k)] = val_lbl
@@ -315,8 +315,8 @@ class RippleViewer(QWidget):
     def _update_knob_label(self, knob, new_value):
         knob_label = self.knob_labels[id(knob)]
         if knob_label:
-            prefix = knob_label.text().split(':')[0]
-            knob_label.setText(f'{prefix}: {new_value}')
+            prefix = knob_label.text().split(":")[0]
+            knob_label.setText(f"{prefix}: {new_value}")
 
     def _on_knob_changed(self) -> None:
         self.spect_low = self.k_low.value()
@@ -355,7 +355,7 @@ class RippleViewer(QWidget):
         self.nav_line.setValue(ripple.peak_sec)
 
         self.info_label.setText(
-            f"""RIPPLE 
+            f"""RIPPLEf
             {self.current_ripple + 1} / {len(self.ripples[self.current_channel])}"""
         )
 
@@ -481,7 +481,7 @@ class RippleViewer(QWidget):
         noverlap = int(self.nfft * 0.9)
         noverlap: int = min(noverlap, self.nfft - 1)
         f, t, sxx = spectrogram(
-            chunk, fs=self.fs, nperseg=self.nfft, noverlap=noverlap, window='hann'
+            chunk, fs=self.fs, nperseg=self.nfft, noverlap=noverlap, window="hann"
         )
         mask = (f >= self.spect_low) & (f <= self.spect_high)
 
@@ -522,10 +522,10 @@ class RippleViewer(QWidget):
 
     def show(self) -> None:
         super().show()
-        if self.app and getattr(self, '_owns_app', False):
+        if self.app and getattr(self, "_owns_app", False):
             sys.exit(self.app.exec())
 
     def showMaximized(self) -> None:  # noqa: N802
         super().showMaximized()
-        if self.app and getattr(self, '_owns_app', False):
+        if self.app and getattr(self, "_owns_app", False):
             sys.exit(self.app.exec())

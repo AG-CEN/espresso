@@ -33,9 +33,9 @@ def generate_synthetic_lfp(fs: float, duration: float) -> tuple[np.ndarray, np.n
     signal = noise + theta_oscillation
 
     ripple_protocols = [
-        {'start_time': 2.0, 'frequency': 180.0, 'amplitude': 4.0},
-        {'start_time': 4.5, 'frequency': 200.0, 'amplitude': 3.5},
-        {'start_time': 7.1, 'frequency': 220.0, 'amplitude': 5.0},
+        {"start_time": 2.0, "frequency": 180.0, "amplitude": 4.0},
+        {"start_time": 4.5, "frequency": 200.0, "amplitude": 3.5},
+        {"start_time": 7.1, "frequency": 220.0, "amplitude": 5.0},
     ]
 
     for protocol in ripple_protocols:
@@ -50,8 +50,8 @@ def run_ripple_analysis() -> None:
 
     timestamps_raw, signal_raw = generate_synthetic_lfp(fs_raw, duration_s)
 
-    data_8khz = decimate(signal_raw, q=4, ftype='iir', zero_phase=True)
-    data_2khz = decimate(data_8khz, q=4, ftype='iir', zero_phase=True)
+    data_8khz = decimate(signal_raw, q=4, ftype="iir", zero_phase=True)
+    data_2khz = decimate(data_8khz, q=4, ftype="iir", zero_phase=True)
 
     timestamps_ds = timestamps_raw[::16]
 
@@ -66,19 +66,19 @@ def run_ripple_analysis() -> None:
     )
 
     duration_m = duration_s // 60
-    print(f'File Duration: {duration_m:.0f}m {duration_s % 60:.2f}s')
-    print('Detected Ripple Peaks:')
+    print(f"File Duration: {duration_m:.0f}m {duration_s % 60:.2f}s")
+    print("Detected Ripple Peaks:")
     for peak in events[:5]:
         print(peak)
 
     viewer = RippleViewer(
-        raw_volts={'channel_0': signal_raw},
-        ripples={'channel_0': events},
+        raw_volts={"channel_0": signal_raw},
+        ripples={"channel_0": events},
         fs=fs_raw,
         spect_high=300,
     )
     viewer.showMaximized()
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     run_ripple_analysis()
