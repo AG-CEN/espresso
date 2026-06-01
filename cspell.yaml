@@ -1,0 +1,32 @@
+$schema: https://raw.githubusercontent.com/streetsidesoftware/cspell/main/cspell.schema.json
+version: "0.2"
+import:
+  - "@cspell/dict-python/cspell-ext.json"
+dictionaries:
+  - python
+  - html
+  - project-words
+  - en_US
+ignorePaths:
+  - node_modules
+  - .venv
+  - .tools
+  - /.project-dictionary.txt
+  - src/**/migrations
+  - src/**/fixtures
+  - src/**/vendor
+  - src/**/tests
+  - src/static.dist
+  - src/hub/settings
+  - "*.svg"
+  - tox.ini
+languageSettings:
+  - languageId: markdown
+    caseSensitive: true
+  - languageId: python
+    ignoreRegExpList:
+      - /from .* import .*/g
+      - /import .*/g
+words:
+  - ftype
+  - hanning

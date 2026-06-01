@@ -2,7 +2,7 @@ import numpy as np
 from scipy.signal import decimate
 
 from espresso.hfo.ripple_detector import detect_ripples
-from espresso.ui.ripple_viewer import RippleEvent, RippleViewer
+from espresso.ui.ripple_viewer import RippleDataset, RippleEvent, RippleViewer
 
 
 def inject_ripple(
@@ -72,9 +72,13 @@ def run_ripple_analysis() -> None:
         print(peak)
 
     viewer = RippleViewer(
-        raw_volts={"channel_0": signal_raw},
-        ripples={"channel_0": events},
-        fs=fs_raw,
+        ripple_datasets=[
+            RippleDataset(
+                raw_volts={"channel_0": signal_raw},
+                ripples={"channel_0": events},
+                fs=fs_raw,
+            )
+        ],
         spect_high=300,
     )
     viewer.showMaximized()
