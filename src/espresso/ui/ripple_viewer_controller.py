@@ -60,9 +60,9 @@ class RippleViewerController:
             for channel in dataset.raw_volts.keys():
                 self.plot_visibility[dataset_name][channel] = {
                     "raw": True,
-                    "filtered": False,
-                    "hilbert": False,
-                    "spectrogram": False,
+                    "filtered": True,
+                    "hilbert": True,
+                    "spectrogram": True,
                 }
 
     def _get_current_channel(self) -> str:
