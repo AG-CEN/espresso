@@ -4,7 +4,7 @@ import pyqtgraph as pg
 from PyQt6.QtCore import Qt
 from PyQt6.QtWidgets import QApplication, QVBoxLayout, QWidget
 
-from espresso.ui.components.signal_plot_renderer import SignalPlotRenderer
+from espresso.ui.components.plots_view import PlotsView
 from espresso.ui.components.top_bar import TopBar
 from espresso.ui.ripple_viewer_controller import RippleViewerController
 
@@ -13,6 +13,7 @@ class RippleViewer(QWidget):
     """Main Orchestrator Frame UI assembly layer."""
 
     def __init__(self, controller: RippleViewerController):
+        # This obtains or creates the QApplication instance used by the viewer.
         self.app = QApplication.instance()
         if self.app is None:
             self.app = QApplication(sys.argv)
@@ -36,7 +37,6 @@ class RippleViewer(QWidget):
     def _init_layout(self) -> None:
         layout = QVBoxLayout(self)
 
-        # 1. Nav Bar Assembly
         self.nav_bar = TopBar(self)
         layout.addWidget(self.nav_bar)
 
@@ -46,10 +46,10 @@ class RippleViewer(QWidget):
         self.nav_bar.next_btn.clicked.connect(self.controller.next_ripple)
         self.nav_bar.ch_input.returnPressed.connect(self._on_channel_input_returned)
 
-        # 2. Main Window Component
         self.win = pg.GraphicsLayoutWidget()
         layout.addWidget(self.win)
 
+        # This creates the four stacked plots for raw, filtered, envelope, and spectrogram.
         self.p_raw = self._add_grilled_plot(0, "Raw LFP")
         self.p_filt = self._add_grilled_plot(1, "Filtered")
         self.p_env = self._add_grilled_plot(2, "Envelope")
@@ -62,25 +62,22 @@ class RippleViewer(QWidget):
         self.p_env.setLabel("left", "Envelope", units="µV")
         self.p_spec.setLabel("bottom", "Time", units="s")
 
-        # Link x-axis across plots
+        # This keeps horizontal zoom and pan synchronized across the three signal plots.
         self.p_filt.setXLink(self.p_raw)
         self.p_env.setXLink(self.p_raw)
         self.p_spec.setXLink(self.p_raw)
 
-        # 3. Signal Plot Renderer
-        self.plot_renderer = SignalPlotRenderer(
+        self.plot_renderer = PlotsView(
             self.p_raw, self.p_filt, self.p_env, self.p_spec, self.win
         )
 
-        # Add colorbar
-        self.win.addItem(self.plot_renderer.get_colorbar(), 3, 1)
+        self.win.addItem(self.plot_renderer.colorbar, 3, 1)
 
         self.nav_bar.ch_input.clearFocus()
 
-        # 6. Plot interactions
+        # This updates plot contents when the raw plot range changes.
         self.p_raw.sigRangeChanged.connect(self._on_plot_range_changed)
 
-        # 7. Set initial view to the first 2s window
         self.p_raw.setXRange(
             0,
             min(self.controller.view_window_sec, self.controller.total_duration),
@@ -118,13 +115,11 @@ class RippleViewer(QWidget):
             self.update_ui_from_state()
 
     def _on_plot_range_changed(self) -> None:
-        """Handle when user pans the raw plot."""
         self.update_ui_from_state()
 
     def update_ui_from_state(self) -> None:
         c = self.controller
 
-        # Sync simple view states
         ripples_count = len(c.current_ripple_list)
         current_display_idx = c.current_ripple_idx + 1 if ripples_count > 0 else 0
         self.nav_bar.update_display(
@@ -133,6 +128,7 @@ class RippleViewer(QWidget):
 
         current_ripple = c.current_ripple
         if current_ripple is not None:
+            # This updates the peak marker and recenters the raw plot when a new ripple is selected.
             self.plot_renderer.update_ripple_marker(current_ripple.peak_sec)
             if self._last_ripple_idx != c.current_ripple_idx:
                 self._center_view_on_peak(current_ripple.peak_sec)
@@ -172,7 +168,7 @@ class RippleViewer(QWidget):
             super().keyPressEvent(a0)
 
     def _toggle_zoom(self) -> None:
-        """Toggle between 2s and 0.25s zoom levels."""
+        # This toggles the view window size while keeping the current center time.
         self.controller.toggle_ripple_highlight()
         x_range, _ = self.p_raw.viewRange()
         center = (x_range[0] + x_range[1]) / 2
@@ -184,6 +180,7 @@ class RippleViewer(QWidget):
         )
 
     def _center_view_on_peak(self, peak_sec: float) -> None:
+        # This keeps the selected ripple centered in the raw plot window.
         half_window = self.controller.view_window_sec / 2
         self.p_raw.setXRange(
             max(0, peak_sec - half_window),

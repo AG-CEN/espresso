@@ -7,7 +7,7 @@ from PyQt6.QtGui import QPainter
 from scipy.signal import hilbert, sosfiltfilt, spectrogram
 
 
-class SignalPlotRenderer:
+class PlotsView:
     """Renders raw, filtered, envelope, and spectrogram plots."""
 
     def __init__(
@@ -24,7 +24,7 @@ class SignalPlotRenderer:
         self.p_spec = p_spec
         self.win = win
 
-        # Persistent curve objects
+        # Persistent plot curves are created once for efficient redraw.
         self.c_raw = self.p_raw.plot(pen=pg.mkPen((33, 33, 33), width=1))
         self.c_raw.setZValue(0)
         self.c_filt = self.p_filt.plot(pen=pg.mkPen((33, 33, 33), width=1))
@@ -46,7 +46,7 @@ class SignalPlotRenderer:
         self.colorbar = pg.ColorBarItem(values=(-0.5, 2.0), colorMap="turbo")
         self.colorbar.setImageItem(self.img)
 
-        # Vertical lines for ripple markers
+        # Vertical marker lines are added to each plot for the ripple peak position.
         self.v_lines = []
         for p in [self.p_raw, self.p_filt, self.p_env, self.p_spec]:
             line = pg.InfiniteLine(
@@ -71,7 +71,6 @@ class SignalPlotRenderer:
         z_min: float,
         z_max: float,
     ) -> None:
-        """Render all plots - direct translation from old render_all()."""
         s = int(max(0, s_sec * fs))
         e = int(min(len(raw_signal), e_sec * fs))
 
@@ -83,7 +82,7 @@ class SignalPlotRenderer:
         f_chunk = sosfiltfilt(sos, chunk)
         env_chunk = np.abs(hilbert(f_chunk))
 
-        # Create masks
+        # Highlight masks are prepared for ripple windows in the current view.
         black_mask = np.ones(chunk.shape, dtype=bool)
         hi_raw = np.full(chunk.shape, np.nan)
         hi_filt = np.full(chunk.shape, np.nan)
@@ -108,7 +107,6 @@ class SignalPlotRenderer:
                 hi_env[r_s_ext:r_e_ext] = env_chunk[r_s_ext:r_e_ext]
                 black_mask[r_s:r_e] = False
 
-        # Apply masks
         clean_raw = chunk.copy().astype(float)
         clean_filt = f_chunk.copy().astype(float)
         clean_env = env_chunk.copy().astype(float)
@@ -117,7 +115,7 @@ class SignalPlotRenderer:
         clean_filt[~black_mask] = np.nan
         clean_env[~black_mask] = np.nan
 
-        # Render curves
+        # The cleaned black traces are drawn first, then red highlight traces overlay the ripple segments.
         self.c_raw.setData(x, clean_raw)
         self.c_filt.setData(x, clean_filt)
         self.c_env.setData(x, clean_env)
@@ -126,7 +124,7 @@ class SignalPlotRenderer:
         self.c_filt_hi.setData(x, hi_filt)
         self.c_env_hi.setData(x, hi_env)
 
-        # Spectrogram
+        # Spectrogram is generated for the visible signal chunk.
         nfft = max(1, min(nfft, len(chunk)))
         noverlap = int(nfft * 0.9)
         noverlap = min(noverlap, nfft - 1)
@@ -157,7 +155,6 @@ class SignalPlotRenderer:
             self.p_spec.setYRange(spect_low, spect_high, padding=0)
 
     def update_ripple_marker(self, ripple_peak_sec: float) -> None:
-        """Update vertical lines to ripple peak."""
         for line in self.v_lines:
             line.setPos(ripple_peak_sec)
 
