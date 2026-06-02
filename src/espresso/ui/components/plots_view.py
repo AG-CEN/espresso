@@ -105,8 +105,6 @@ class PlotsView:
         nfft: int,
         z_min: float,
         z_max: float,
-        is_primary: bool = True,
-        current_ripple=None,
     ) -> None:
         """Render plots for a dataset.
 
@@ -142,7 +140,6 @@ class PlotsView:
         hi_raw = np.full(chunk.shape, np.nan)
         hi_filt = np.full(chunk.shape, np.nan)
         hi_env = np.full(chunk.shape, np.nan)
-
 
         ripples = dataset.ripples.get(channel, [])
         in_view = [

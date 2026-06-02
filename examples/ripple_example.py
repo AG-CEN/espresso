@@ -78,7 +78,7 @@ def run_ripple_analysis() -> None:
         ripple_datasets={
             "raw": RippleDataset(
                 raw_volts={"channel_0": signal_raw},
-                ripples={"channel_0": events},
+                ripples={"channel_0": events[0:2]},
                 fs=fs_raw,
             ),
             "another": RippleDataset(

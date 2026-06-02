@@ -1,3 +1,4 @@
+import heapq
 from collections.abc import Callable
 from typing import Any
 
@@ -48,7 +49,8 @@ class RippleViewerController:
         self.plot_visibility: dict[str, dict[str, dict[str, bool]]] = {}
         self._initialize_plot_visibility()
 
-        self.current_channel: str = self._get_current_channel()
+        self.current_channel: str = self._get_initial_current_channel()
+
         self.current_ripple_idx: int = 0
 
         self._listeners: list[Callable[[], None]] = []
@@ -65,7 +67,7 @@ class RippleViewerController:
                     "spectrogram": True,
                 }
 
-    def _get_current_channel(self) -> str:
+    def _get_initial_current_channel(self) -> str:
         """Get first available channel from current dataset."""
         current_dataset = self.ripple_datasets[self.current_dataset_name]
         channels = list(current_dataset.raw_volts.keys())
@@ -103,12 +105,29 @@ class RippleViewerController:
         return self.n_samples / self.fs
 
     @property
-    def current_ripple_list(self) -> list[Any]:
-        return self.current_dataset.ripples.get(self.current_channel, [])
+    def current_ripples(self) -> list[Any]:
+        """Merge sorted channel data and remove duplicates within 50ms."""
+        # 1. Gather the active ripple lists for this channel
+        streams = [
+            d.ripples[self.current_channel]
+            for d in self.ripple_datasets.values()
+            if self.current_channel in d.ripples
+        ]
+
+        # 2. Linear O(N) merge preserving the chronological order
+        sorted_ripples = heapq.merge(*streams, key=lambda r: r.peak_sec)
+
+        # 3. Linear O(N) sliding window deduplication
+        filtered = []
+        for ripple in sorted_ripples:
+            if not filtered or (ripple.peak_sec - filtered[-1].peak_sec >= 0.05):
+                filtered.append(ripple)
+
+        return filtered
 
     @property
     def current_ripple(self) -> Any | None:
-        ripples = self.current_ripple_list
+        ripples = self.current_ripples
         if 0 <= self.current_ripple_idx < len(ripples):
             return ripples[self.current_ripple_idx]
         return None
@@ -125,7 +144,7 @@ class RippleViewerController:
         if dataset_name not in self.ripple_datasets:
             raise ValueError(f"Dataset {dataset_name} not found")
         self.current_dataset_name = dataset_name
-        self.current_channel = self._get_current_channel()
+        self.current_channel = self._get_initial_current_channel()
         self.current_ripple_idx = 0
         self.notify_listeners()
 
@@ -146,13 +165,13 @@ class RippleViewerController:
         self.change_channel(self.channels[prev_index])
 
     def next_ripple(self) -> None:
-        ripples = self.current_ripple_list
+        ripples = self.current_ripples
         if ripples and self.current_ripple_idx < len(ripples) - 1:
             self.current_ripple_idx += 1
             self.notify_listeners()
 
     def prev_ripple(self) -> None:
-        ripples = self.current_ripple_list
+        ripples = self.current_ripples
         if ripples and self.current_ripple_idx > 0:
             self.current_ripple_idx -= 1
             self.notify_listeners()

@@ -229,19 +229,18 @@ class RippleViewer(QWidget):
         c = self.controller
 
         # Update nav bar with current ripple info (from first dataset)
-        ripples_count = len(c.current_ripple_list)
+        ripples_count = len(c.current_ripples) if c.current_ripples else 0
         current_display_idx = c.current_ripple_idx + 1 if ripples_count > 0 else 0
         self.nav_bar.update_display(
             c.current_channel, current_display_idx, ripples_count
         )
 
-        # Update ripple marker for first/current dataset only
         current_ripple = c.current_ripple
         if current_ripple is not None:
-            first_dataset_name = c.dataset_names[0]
-            self._plot_renderers[first_dataset_name].update_ripple_marker(
-                current_ripple.peak_sec
-            )
+            for dataset_name in c.dataset_names:
+                self._plot_renderers[dataset_name].update_ripple_marker(
+                    current_ripple.peak_sec
+                )
             if self._last_ripple_idx != c.current_ripple_idx:
                 self._center_view_on_peak(current_ripple.peak_sec)
                 self._last_ripple_idx = c.current_ripple_idx
@@ -297,8 +296,6 @@ class RippleViewer(QWidget):
                 nfft=c.nfft,
                 z_min=c.z_min,
                 z_max=c.z_max,
-                is_primary=is_primary,
-                current_ripple=current_ripple,
             )
 
     def keyPressEvent(self, a0) -> None:  # noqa: N802
