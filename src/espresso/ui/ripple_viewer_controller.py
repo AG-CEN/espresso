@@ -1,8 +1,9 @@
 from collections.abc import Callable
 from typing import Any
 
-import numpy as np
 from scipy.signal import butter
+
+from espresso.models.ripple_dataset import RippleDataset
 
 
 class RippleViewerController:
@@ -10,12 +11,28 @@ class RippleViewerController:
 
     def __init__(
         self,
-        raw_volts: dict[str, np.ndarray],
-        ripples: dict[str, list[Any]],  # Replace Any with RippleEvent
-        fs: float,
+        ripple_datasets: dict[str, RippleDataset],
         spect_low: int = 1,
         spect_high: int = 250,
+        z_min: float = -0.5,
+        z_max: float = 2.0,
+        z_interp: int = 1024,
+        nfft: int | None = None,
     ):
+        # Old constructor signature for reference:
+        # raw_volts: dict[str, np.ndarray],
+        # ripples: dict[str, list[Any]],  # Replace Any with RippleEvent
+        # fs: float,
+        # We need to refactor the viewer to take in RippleDataset
+        # objects instead of separate raw/ripple/fs parameters.
+        # but for now we default to first dataset for backward compatibility.
+        if not ripple_datasets:
+            raise ValueError("At least one RippleDataset must be provided")
+        first_dataset = next(iter(ripple_datasets.values()))
+        raw_volts = first_dataset.raw_volts
+        ripples = first_dataset.ripples
+        fs = first_dataset.fs
+
         if not raw_volts:
             raise ValueError("raw_volts cannot be empty")
         if fs <= 0:
@@ -33,10 +50,11 @@ class RippleViewerController:
         self.spect_low: int = spect_low
         self.spect_high: int = spect_high
         self.view_window_sec: float = 2.0
-        self.nfft: int = int(self.fs * 0.125)
-        self.z_min: float = -0.5
-        self.z_max: float = 2.0
-        self.z_interp: int = 1024
+        self.nfft: int = int(self.fs * 0.125) if nfft is None else nfft
+
+        self.z_min: float = z_min
+        self.z_max: float = z_max
+        self.z_interp: int = z_interp
 
         self.sos = butter(4, [80, 150], btype="band", fs=self.fs, output="sos")
         self._listeners: list[Callable[[], None]] = []
