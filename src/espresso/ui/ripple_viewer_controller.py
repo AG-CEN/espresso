@@ -19,34 +19,19 @@ class RippleViewerController:
         z_interp: int = 1024,
         nfft: int | None = None,
     ):
-        # Old constructor signature for reference:
-        # raw_volts: dict[str, np.ndarray],
-        # ripples: dict[str, list[Any]],  # Replace Any with RippleEvent
-        # fs: float,
-        # We need to refactor the viewer to take in RippleDataset
-        # objects instead of separate raw/ripple/fs parameters.
-        # but for now we default to first dataset for backward compatibility.
         if not ripple_datasets:
             raise ValueError("At least one RippleDataset must be provided")
-        first_dataset = next(iter(ripple_datasets.values()))
-        raw_volts = first_dataset.raw_volts
-        ripples = first_dataset.ripples
-        fs = first_dataset.fs
 
-        if not raw_volts:
-            raise ValueError("raw_volts cannot be empty")
-        if fs <= 0:
+        self.ripple_datasets = ripple_datasets
+        self.dataset_names = list(ripple_datasets.keys())
+        self.current_dataset_name: str = self.dataset_names[0]
+
+        first_dataset = ripple_datasets[self.current_dataset_name]
+        self.fs = first_dataset.fs
+
+        if self.fs <= 0:
             raise ValueError("Sampling frequency must be positive")
-        if set(ripples.keys()) - set(raw_volts.keys()):
-            raise ValueError("Ripples contain channels not present in raw_volts")
 
-        self.raw = raw_volts
-        self.ripples = ripples
-        self.fs = fs
-
-        self.channels = list(raw_volts.keys())
-        self.current_channel: str = self.channels[0]
-        self.current_ripple_idx: int = 0
         self.spect_low: int = spect_low
         self.spect_high: int = spect_high
         self.view_window_sec: float = 2.0
@@ -57,7 +42,76 @@ class RippleViewerController:
         self.z_interp: int = z_interp
 
         self.sos = butter(4, [80, 150], btype="band", fs=self.fs, output="sos")
+        
+        # Track which plots are visible: {dataset_name: {channel: {plot_type: bool}}}
+        # plot_type: "raw", "filtered", "hilbert", "spectrogram"
+        self.plot_visibility: dict[str, dict[str, dict[str, bool]]] = {}
+        self._initialize_plot_visibility()
+
+        self.current_channel: str = self._get_current_channel()
+        self.current_ripple_idx: int = 0
+
         self._listeners: list[Callable[[], None]] = []
+
+    def _initialize_plot_visibility(self) -> None:
+        """Initialize visibility state for all dataset/channel/plot combinations."""
+        for dataset_name, dataset in self.ripple_datasets.items():
+            self.plot_visibility[dataset_name] = {}
+            for channel in dataset.raw_volts.keys():
+                self.plot_visibility[dataset_name][channel] = {
+                    "raw": True,
+                    "filtered": False,
+                    "hilbert": False,
+                    "spectrogram": False,
+                }
+
+    def _get_current_channel(self) -> str:
+        """Get first available channel from current dataset."""
+        current_dataset = self.ripple_datasets[self.current_dataset_name]
+        channels = list(current_dataset.raw_volts.keys())
+        if not channels:
+            raise ValueError(f"Dataset {self.current_dataset_name} has no channels")
+        return channels[0]
+
+    @property
+    def current_dataset(self) -> RippleDataset:
+        return self.ripple_datasets[self.current_dataset_name]
+
+    @property
+    def channels(self) -> list[str]:
+        return list(self.current_dataset.raw_volts.keys())
+    
+    def get_dataset(self, dataset_name: str) -> RippleDataset | None:
+        """Get a specific dataset by name."""
+        return self.ripple_datasets.get(dataset_name)
+    
+    def get_all_visible_plots(self) -> list[tuple[str, str, str]]:
+        """Get all visible plots as (dataset_name, channel, plot_type) tuples."""
+        visible_plots = []
+        for dataset_name in self.dataset_names:
+            for channel in self.ripple_datasets[dataset_name].raw_volts.keys():
+                for plot_type in self.get_visible_plots(dataset_name, channel):
+                    visible_plots.append((dataset_name, channel, plot_type))
+        return visible_plots
+
+    @property
+    def n_samples(self) -> int:
+        return len(self.current_dataset.raw_volts[self.current_channel])
+
+    @property
+    def total_duration(self) -> float:
+        return self.n_samples / self.fs
+
+    @property
+    def current_ripple_list(self) -> list[Any]:
+        return self.current_dataset.ripples.get(self.current_channel, [])
+
+    @property
+    def current_ripple(self) -> Any | None:
+        ripples = self.current_ripple_list
+        if 0 <= self.current_ripple_idx < len(ripples):
+            return ripples[self.current_ripple_idx]
+        return None
 
     def add_listener(self, callback: Callable[[], None]) -> None:
         self._listeners.append(callback)
@@ -66,24 +120,14 @@ class RippleViewerController:
         for callback in self._listeners:
             callback()
 
-    @property
-    def n_samples(self) -> int:
-        return len(self.raw[self.current_channel])
-
-    @property
-    def total_duration(self) -> float:
-        return self.n_samples / self.fs
-
-    @property
-    def current_ripple_list(self) -> list[Any]:
-        return self.ripples.get(self.current_channel, [])
-
-    @property
-    def current_ripple(self) -> Any | None:
-        ripples = self.current_ripple_list
-        if 0 <= self.current_ripple_idx < len(ripples):
-            return ripples[self.current_ripple_idx]
-        return None
+    def change_dataset(self, dataset_name: str) -> None:
+        """Switch to a different dataset."""
+        if dataset_name not in self.ripple_datasets:
+            raise ValueError(f"Dataset {dataset_name} not found")
+        self.current_dataset_name = dataset_name
+        self.current_channel = self._get_current_channel()
+        self.current_ripple_idx = 0
+        self.notify_listeners()
 
     def change_channel(self, channel_name: str) -> None:
         if channel_name in self.channels:
@@ -117,3 +161,38 @@ class RippleViewerController:
         """Toggle between 2s and 0.25s view windows."""
         self.view_window_sec = 0.25 if self.view_window_sec >= 0.5 else 2.0
         self.notify_listeners()
+
+    def set_plot_visibility(
+        self, dataset_name: str, channel: str, plot_type: str, visible: bool
+    ) -> None:
+        """Control visibility of a specific plot."""
+        if dataset_name not in self.plot_visibility:
+            raise ValueError(f"Dataset {dataset_name} not found")
+        if channel not in self.plot_visibility[dataset_name]:
+            raise ValueError(f"Channel {channel} not found in dataset {dataset_name}")
+        if plot_type not in self.plot_visibility[dataset_name][channel]:
+            raise ValueError(f"Invalid plot type: {plot_type}")
+
+        self.plot_visibility[dataset_name][channel][plot_type] = visible
+        self.notify_listeners()
+
+    def toggle_plot_visibility(
+        self, dataset_name: str, channel: str, plot_type: str
+    ) -> None:
+        """Toggle visibility of a specific plot."""
+        current = self.plot_visibility[dataset_name][channel][plot_type]
+        self.set_plot_visibility(dataset_name, channel, plot_type, not current)
+
+    def get_plot_visibility(
+        self, dataset_name: str, channel: str, plot_type: str
+    ) -> bool:
+        """Check if a plot is visible."""
+        return self.plot_visibility[dataset_name][channel][plot_type]
+
+    def get_visible_plots(self, dataset_name: str, channel: str) -> list[str]:
+        """Get list of visible plot types for a dataset/channel."""
+        return [
+            plot_type
+            for plot_type, visible in self.plot_visibility[dataset_name][channel].items()
+            if visible
+        ]

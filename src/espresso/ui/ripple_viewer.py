@@ -17,7 +17,13 @@ from espresso.ui.ripple_viewer_controller import RippleViewerController
 
 
 class RippleViewer(QWidget):
-    """Main Orchestrator Frame UI assembly layer."""
+    """Display multiple datasets in columns, each with 4 plots."""
+    """Main Orchestrator Frame UI assembly layer.
+    
+    Displays multiple datasets simultaneously with shared channel navigation.
+    Ripple controls (next/prev) apply only to the first dataset.
+    All X-axis ranges are synchronized to the first dataset.
+    """
 
     def __init__(
         self,
@@ -37,6 +43,10 @@ class RippleViewer(QWidget):
         self.controller = controller
         self.ripple_datasets = ripple_datasets or {}
         self._last_ripple_idx: int | None = None
+        
+        # Store plot renderers and items for each dataset
+        self._plot_renderers: dict[str, PlotsView] = {}  # {dataset_name: PlotsView}
+        self._plot_items: dict[str, dict[str, pg.PlotItem]] = {}  # {dataset_name: {plot_type: PlotItem}}
 
         pg.setConfigOption("background", "w")
         pg.setConfigOption("foreground", "k")
@@ -44,6 +54,7 @@ class RippleViewer(QWidget):
 
         self._init_layout()
         self.controller.add_listener(self.update_ui_from_state)
+        self.left_panel.plot_visibility_changed.connect(self._on_plot_visibility_changed)
         self.update_ui_from_state()
 
     def _init_layout(self) -> None:
@@ -52,6 +63,7 @@ class RippleViewer(QWidget):
         self.nav_bar = TopBar(self)
         layout.addWidget(self.nav_bar)
 
+        # Connect navigation controls to first dataset only
         self.nav_bar.prev_ch_btn.clicked.connect(self.controller.prev_channel)
         self.nav_bar.next_ch_btn.clicked.connect(self.controller.next_channel)
         self.nav_bar.prev_btn.clicked.connect(self.controller.prev_ripple)
@@ -67,54 +79,102 @@ class RippleViewer(QWidget):
             self.left_panel.load_datasets(self.ripple_datasets)
         main_layout.addWidget(self.left_panel)
 
-        # Right side: plots area.
+        # Right side: scrollable plots area for multiple datasets
         self.win = pg.GraphicsLayoutWidget()
         main_layout.addWidget(self.win, stretch=1)
 
         layout.addLayout(main_layout)
 
-        # This creates the four stacked plots for raw, filtered, envelope, and spectrogram.
-        self.p_raw = self._add_grilled_plot(0, "Raw LFP")
-        self.p_filt = self._add_grilled_plot(1, "Filtered")
-        self.p_env = self._add_grilled_plot(2, "Envelope")
-        self.p_spec = self._add_grilled_plot(
-            3, "Spectrogram", grid_color=(190, 190, 190)
-        )
-
-        self.p_raw.setLabel("left", "Voltage", units="µV")
-        self.p_filt.setLabel("left", "Filtered", units="µV")
-        self.p_env.setLabel("left", "Envelope", units="µV")
-        self.p_spec.setLabel("bottom", "Time", units="s")
-
-        # This keeps horizontal zoom and pan synchronized across the three signal plots.
-        self.p_filt.setXLink(self.p_raw)
-        self.p_env.setXLink(self.p_raw)
-        self.p_spec.setXLink(self.p_raw)
-
-        self.plot_renderer = PlotsView(
-            self.p_raw, self.p_filt, self.p_env, self.p_spec, self.win
-        )
-
-        self.win.addItem(self.plot_renderer.colorbar, 3, 1)
+        # Create plot areas for each dataset
+        self._create_dataset_plots()
 
         self.nav_bar.ch_input.clearFocus()
 
-        # This updates plot contents when the raw plot range changes.
-        self.p_raw.sigRangeChanged.connect(self._on_plot_range_changed)
+    def _create_dataset_plots(self) -> None:
+        """Create plot grid for all datasets (stacked vertically: 4 rows per dataset)."""
+        for dataset_idx, dataset_name in enumerate(self.controller.dataset_names):
+            dataset = self.controller.get_dataset(dataset_name)
+            if dataset is None:
+                continue
 
-        self.p_raw.setXRange(
-            0,
-            min(self.controller.view_window_sec, self.controller.total_duration),
-            padding=0,
-        )
+            # Get dataset duration for axis limits
+            first_channel = next(iter(dataset.raw_volts.keys())) if dataset.raw_volts else None
+            if first_channel is None:
+                continue
+            
+            dataset_duration = len(dataset.raw_volts[first_channel]) / dataset.fs
+            
+            # Calculate row offset for this dataset (4 plots per dataset)
+            row_offset = dataset_idx * 4
+
+            # Create the four plots for this dataset (all in column 0)
+            p_raw = self._add_grilled_plot(
+                row_offset + 0, 0, f"{dataset_name} Raw LFP", dataset_duration
+            )
+            p_filt = self._add_grilled_plot(
+                row_offset + 1, 0, f"{dataset_name} Filtered", dataset_duration
+            )
+            p_env = self._add_grilled_plot(
+                row_offset + 2, 0, f"{dataset_name} Envelope", dataset_duration
+            )
+            p_spec = self._add_grilled_plot(
+                row_offset + 3, 0, f"{dataset_name} Spectrogram", dataset_duration,
+                grid_color=(190, 190, 190)
+            )
+
+            # Set axis labels
+            p_raw.setLabel("left", "Voltage", units="µV")
+            p_filt.setLabel("left", "Filtered", units="µV")
+            p_env.setLabel("left", "Envelope", units="µV")
+            p_spec.setLabel("bottom", "Time", units="s")
+
+            # Link X-axis within this dataset's plots
+            p_filt.setXLink(p_raw)
+            p_env.setXLink(p_raw)
+            p_spec.setXLink(p_raw)
+
+            # Link X-axis to first dataset for synchronized viewing across datasets
+            if dataset_idx > 0:
+                first_dataset_name = self.controller.dataset_names[0]
+                first_raw_plot = self._plot_items[first_dataset_name]["raw"]
+                p_raw.setXLink(first_raw_plot)
+
+            # Create renderer for this dataset
+            renderer = PlotsView(p_raw, p_filt, p_env, p_spec, self.win, dataset_name)
+            
+            # Store references
+            self._plot_renderers[dataset_name] = renderer
+            self._plot_items[dataset_name] = {
+                "raw": p_raw,
+                "filtered": p_filt,
+                "hilbert": p_env,
+                "spectrogram": p_spec,
+            }
+
+            # Connect range change signal only for first dataset
+            if dataset_idx == 0:
+                p_raw.sigRangeChanged.connect(self._on_plot_range_changed)
+                first_duration = self.controller.total_duration
+                p_raw.setXRange(
+                    0,
+                    min(self.controller.view_window_sec, first_duration),
+                    padding=0,
+                )
 
     def _add_grilled_plot(
-        self, row: int, title: str, grid_color: tuple = ("k",)
+        self,
+        row: int,
+        col: int,
+        title: str,
+        duration: float,
+        grid_color: tuple = ("k",),
     ) -> pg.PlotItem:
-        p = self.win.addPlot(row=row, col=0, title=title)
+        """Create a single plot with grid and axis configuration."""
+        p = self.win.addPlot(row=row, col=col, title=title)
         p.showGrid(x=True, y=True, alpha=0.5)
         p.setMouseEnabled(y=False)
 
+        # Configure grid colors
         if grid_color != ("k",):
             grid_pen = pg.mkPen(color=grid_color, width=1)
             p.getAxis("bottom").setPen(grid_pen)
@@ -124,9 +184,10 @@ class RippleViewer(QWidget):
             p.getAxis("bottom").setPen(grid_pen)
             p.getAxis("left").setPen(grid_pen)
 
+        # Set axis limits based on dataset duration
         p.setLimits(
             xMin=0,
-            xMax=self.controller.total_duration,
+            xMax=duration,
             maxXRange=self.controller.view_window_sec,
         )
 
@@ -135,47 +196,89 @@ class RippleViewer(QWidget):
     def _on_channel_input_returned(self) -> None:
         channel_name = self.nav_bar.ch_input.text()
         self.controller.change_channel(channel_name)
-        if channel_name not in self.controller.channels:
-            self.update_ui_from_state()
+        self.update_ui_from_state()
 
     def _on_plot_range_changed(self) -> None:
         self.update_ui_from_state()
+    
+    def _on_plot_visibility_changed(
+        self, dataset_name: str, plot_type: str, visible: bool
+    ) -> None:
+        """Handle plot visibility changes from left panel."""
+        # Apply to current channel
+        current_channel = self.controller.current_channel
+        self.controller.set_plot_visibility(dataset_name, current_channel, plot_type, visible)
+        self.update_ui_from_state()
 
     def update_ui_from_state(self) -> None:
+        """Update all plots based on controller state."""
         c = self.controller
-
+        
+        # Update nav bar with current ripple info (from first dataset)
         ripples_count = len(c.current_ripple_list)
         current_display_idx = c.current_ripple_idx + 1 if ripples_count > 0 else 0
         self.nav_bar.update_display(
             c.current_channel, current_display_idx, ripples_count
         )
 
+        # Update ripple marker for first/current dataset only
         current_ripple = c.current_ripple
         if current_ripple is not None:
-            # This updates the peak marker and recenters the raw plot when a new ripple is selected.
-            self.plot_renderer.update_ripple_marker(current_ripple.peak_sec)
+            first_dataset_name = c.dataset_names[0]
+            self._plot_renderers[first_dataset_name].update_ripple_marker(
+                current_ripple.peak_sec
+            )
             if self._last_ripple_idx != c.current_ripple_idx:
                 self._center_view_on_peak(current_ripple.peak_sec)
                 self._last_ripple_idx = c.current_ripple_idx
         else:
             self._last_ripple_idx = None
 
-        view_range = self.p_raw.viewRange()[0]
+        # Get view range from first dataset's raw plot
+        first_dataset_name = c.dataset_names[0]
+        if first_dataset_name not in self._plot_items:
+            return
+        
+        first_raw_plot = self._plot_items[first_dataset_name]["raw"]
+        view_range = first_raw_plot.viewRange()[0]
         s_sec, e_sec = view_range[0], view_range[1]
 
-        self.plot_renderer.render(
-            raw_signal=c.raw[c.current_channel],
-            fs=c.fs,
-            sos=c.sos,
-            ripples=c.current_ripple_list,
-            s_sec=s_sec,
-            e_sec=e_sec,
-            spect_low=c.spect_low,
-            spect_high=c.spect_high,
-            nfft=c.nfft,
-            z_min=c.z_min,
-            z_max=c.z_max,
-        )
+        # Render all visible datasets with the shared channel
+        for dataset_name in c.dataset_names:
+            dataset = c.get_dataset(dataset_name)
+            if dataset is None:
+                continue
+            
+            # Validate channel exists in this dataset
+            if c.current_channel not in dataset.raw_volts:
+                continue
+
+            # Get visible plots for this dataset/channel
+            visible_plots = c.get_visible_plots(dataset_name, c.current_channel)
+            if not visible_plots:
+                continue
+
+            # Get renderer and render
+            if dataset_name not in self._plot_renderers:
+                continue
+            
+            renderer = self._plot_renderers[dataset_name]
+            is_primary = (dataset_name == first_dataset_name)
+            
+            renderer.render(
+                dataset=dataset,
+                channel=c.current_channel,
+                s_sec=s_sec,
+                e_sec=e_sec,
+                sos=c.sos,
+                spect_low=c.spect_low,
+                spect_high=c.spect_high,
+                nfft=c.nfft,
+                z_min=c.z_min,
+                z_max=c.z_max,
+                is_primary=is_primary,
+                current_ripple=current_ripple,
+            )
 
     def keyPressEvent(self, a0) -> None:  # noqa: N802
         if a0.key() == Qt.Key.Key_Right:
@@ -194,10 +297,12 @@ class RippleViewer(QWidget):
     def _toggle_zoom(self) -> None:
         # This toggles the view window size while keeping the current center time.
         self.controller.toggle_ripple_highlight()
-        x_range, _ = self.p_raw.viewRange()
+        first_dataset_name = self.controller.dataset_names[0]
+        first_raw_plot = self._plot_items[first_dataset_name]["raw"]
+        x_range, _ = first_raw_plot.viewRange()
         center = (x_range[0] + x_range[1]) / 2
         half_window = self.controller.view_window_sec / 2
-        self.p_raw.setXRange(
+        first_raw_plot.setXRange(
             max(0, center - half_window),
             min(self.controller.total_duration, center + half_window),
             padding=0,
@@ -205,15 +310,17 @@ class RippleViewer(QWidget):
 
     def _center_view_on_peak(self, peak_sec: float) -> None:
         # This keeps the selected ripple centered in the raw plot window.
+        first_dataset_name = self.controller.dataset_names[0]
+        first_raw_plot = self._plot_items[first_dataset_name]["raw"]
         half_window = self.controller.view_window_sec / 2
-        self.p_raw.setXRange(
+        first_raw_plot.setXRange(
             max(0, peak_sec - half_window),
             min(self.controller.total_duration, peak_sec + half_window),
             padding=0,
         )
 
     def run(self) -> None:
-        """Starts the desktop engine event loop if this instance spawned it."""
+        """Start the application event loop."""
         self.showMaximized()
         if self._owns_app and self.app:
             sys.exit(self.app.exec())
