@@ -18,8 +18,9 @@ from espresso.ui.ripple_viewer_controller import RippleViewerController
 
 class RippleViewer(QWidget):
     """Display multiple datasets in columns, each with 4 plots."""
+
     """Main Orchestrator Frame UI assembly layer.
-    
+
     Displays multiple datasets simultaneously with shared channel navigation.
     Ripple controls (next/prev) apply only to the first dataset.
     All X-axis ranges are synchronized to the first dataset.
@@ -41,12 +42,12 @@ class RippleViewer(QWidget):
         super().__init__()
 
         self.controller = controller
-        self.ripple_datasets = ripple_datasets or {}
+        self.ripple_datasets = ripple_datasets or controller.ripple_datasets
         self._last_ripple_idx: int | None = None
-        
+
         # Store plot renderers and items for each dataset
         self._plot_renderers: dict[str, PlotsView] = {}  # {dataset_name: PlotsView}
-        self._plot_items: dict[str, dict[str, pg.PlotItem]] = {}  # {dataset_name: {plot_type: PlotItem}}
+        self._plot_items: dict[str, dict[str, pg.PlotItem]] = {}
 
         pg.setConfigOption("background", "w")
         pg.setConfigOption("foreground", "k")
@@ -54,7 +55,9 @@ class RippleViewer(QWidget):
 
         self._init_layout()
         self.controller.add_listener(self.update_ui_from_state)
-        self.left_panel.plot_visibility_changed.connect(self._on_plot_visibility_changed)
+        self.left_panel.plot_visibility_changed.connect(
+            self._on_plot_visibility_changed
+        )
         self.update_ui_from_state()
 
     def _init_layout(self) -> None:
@@ -75,8 +78,9 @@ class RippleViewer(QWidget):
 
         # Left panel for dataset/view selection.
         self.left_panel = LeftPanel(self)
-        if self.ripple_datasets:
-            self.left_panel.load_datasets(self.ripple_datasets)
+        # Always load from controller's ripple_datasets
+        if self.controller.ripple_datasets:
+            self.left_panel.load_datasets(self.controller.ripple_datasets)
         main_layout.addWidget(self.left_panel)
 
         # Right side: scrollable plots area for multiple datasets
@@ -98,12 +102,14 @@ class RippleViewer(QWidget):
                 continue
 
             # Get dataset duration for axis limits
-            first_channel = next(iter(dataset.raw_volts.keys())) if dataset.raw_volts else None
+            first_channel = (
+                next(iter(dataset.raw_volts.keys())) if dataset.raw_volts else None
+            )
             if first_channel is None:
                 continue
-            
+
             dataset_duration = len(dataset.raw_volts[first_channel]) / dataset.fs
-            
+
             # Calculate row offset for this dataset (4 plots per dataset)
             row_offset = dataset_idx * 4
 
@@ -118,8 +124,11 @@ class RippleViewer(QWidget):
                 row_offset + 2, 0, f"{dataset_name} Envelope", dataset_duration
             )
             p_spec = self._add_grilled_plot(
-                row_offset + 3, 0, f"{dataset_name} Spectrogram", dataset_duration,
-                grid_color=(190, 190, 190)
+                row_offset + 3,
+                0,
+                f"{dataset_name} Spectrogram",
+                dataset_duration,
+                grid_color=(190, 190, 190),
             )
 
             # Set axis labels
@@ -141,7 +150,7 @@ class RippleViewer(QWidget):
 
             # Create renderer for this dataset
             renderer = PlotsView(p_raw, p_filt, p_env, p_spec, self.win, dataset_name)
-            
+
             # Store references
             self._plot_renderers[dataset_name] = renderer
             self._plot_items[dataset_name] = {
@@ -200,20 +209,22 @@ class RippleViewer(QWidget):
 
     def _on_plot_range_changed(self) -> None:
         self.update_ui_from_state()
-    
+
     def _on_plot_visibility_changed(
         self, dataset_name: str, plot_type: str, visible: bool
     ) -> None:
         """Handle plot visibility changes from left panel."""
         # Apply to current channel
         current_channel = self.controller.current_channel
-        self.controller.set_plot_visibility(dataset_name, current_channel, plot_type, visible)
+        self.controller.set_plot_visibility(
+            dataset_name, current_channel, plot_type, visible
+        )
         self.update_ui_from_state()
 
     def update_ui_from_state(self) -> None:
         """Update all plots based on controller state."""
         c = self.controller
-        
+
         # Update nav bar with current ripple info (from first dataset)
         ripples_count = len(c.current_ripple_list)
         current_display_idx = c.current_ripple_idx + 1 if ripples_count > 0 else 0
@@ -238,7 +249,7 @@ class RippleViewer(QWidget):
         first_dataset_name = c.dataset_names[0]
         if first_dataset_name not in self._plot_items:
             return
-        
+
         first_raw_plot = self._plot_items[first_dataset_name]["raw"]
         view_range = first_raw_plot.viewRange()[0]
         s_sec, e_sec = view_range[0], view_range[1]
@@ -248,23 +259,30 @@ class RippleViewer(QWidget):
             dataset = c.get_dataset(dataset_name)
             if dataset is None:
                 continue
-            
+
             # Validate channel exists in this dataset
             if c.current_channel not in dataset.raw_volts:
                 continue
+
+            # Get renderer
+            if dataset_name not in self._plot_renderers:
+                continue
+
+            renderer = self._plot_renderers[dataset_name]
+            is_primary = dataset_name == first_dataset_name
+
+            # Control visibility of each plot type
+            for plot_type in ["raw", "filtered", "hilbert", "spectrogram"]:
+                is_visible = c.get_plot_visibility(
+                    dataset_name, c.current_channel, plot_type
+                )
+                renderer.set_plot_visible(plot_type, is_visible)
 
             # Get visible plots for this dataset/channel
             visible_plots = c.get_visible_plots(dataset_name, c.current_channel)
             if not visible_plots:
                 continue
 
-            # Get renderer and render
-            if dataset_name not in self._plot_renderers:
-                continue
-            
-            renderer = self._plot_renderers[dataset_name]
-            is_primary = (dataset_name == first_dataset_name)
-            
             renderer.render(
                 dataset=dataset,
                 channel=c.current_channel,

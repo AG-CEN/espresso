@@ -1,8 +1,8 @@
 from PyQt6.QtCore import Qt, pyqtSignal
 from PyQt6.QtWidgets import (
-    QPushButton,
     QListWidget,
     QListWidgetItem,
+    QPushButton,
     QVBoxLayout,
     QWidget,
 )
@@ -47,15 +47,20 @@ class LeftPanel(QWidget):
         self.datasets = ripple_datasets
 
         plot_types = ["raw", "filtered", "hilbert", "spectrogram"]
-        plot_labels = {"raw": "Raw", "filtered": "Filtered", "hilbert": "Envelope", "spectrogram": "Spectrogram"}
+        plot_labels = {
+            "raw": "Raw",
+            "filtered": "Filtered",
+            "hilbert": "Envelope",
+            "spectrogram": "Spectrogram",
+        }
 
         for dataset_name in ripple_datasets.keys():
             for plot_type in plot_types:
                 label = f"{dataset_name} {plot_labels[plot_type]}"
-                
+
                 item = QListWidgetItem(label)
                 item.setFlags(item.flags() | Qt.ItemFlag.ItemIsUserCheckable)
-                
+
                 # Only "raw" is checked by default
                 check_state = (
                     Qt.CheckState.Checked
@@ -63,7 +68,7 @@ class LeftPanel(QWidget):
                     else Qt.CheckState.Unchecked
                 )
                 item.setCheckState(check_state)
-                
+
                 self.list_widget.addItem(item)
                 self._items_map[(dataset_name, plot_type)] = item
 

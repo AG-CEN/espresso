@@ -11,7 +11,7 @@ from espresso.models.ripple_dataset import RippleDataset
 
 class PlotsView:
     """Renders raw, filtered, envelope, and spectrogram plots for a dataset/channel.
-    
+
     Can be reused across multiple datasets by calling render() with different data.
     Visibility is controlled externally via show/hide methods.
     """
@@ -65,7 +65,7 @@ class PlotsView:
             )
             p.addItem(line)
             self.v_lines.append(line)
-    
+
     def set_visible(self, visible: bool) -> None:
         """Control visibility of all plots in this view."""
         self.visible = visible
@@ -73,6 +73,17 @@ class PlotsView:
         self.p_filt.setVisible(visible)
         self.p_env.setVisible(visible)
         self.p_spec.setVisible(visible)
+
+    def set_plot_visible(self, plot_type: str, visible: bool) -> None:
+        """Show/hide a specific plot type."""
+        plots = {
+            "raw": self.p_raw,
+            "filtered": self.p_filt,
+            "hilbert": self.p_env,
+            "spectrogram": self.p_spec,
+        }
+        if plot_type in plots:
+            plots[plot_type].setVisible(visible)
 
     def render(
         self,
@@ -87,10 +98,10 @@ class PlotsView:
         z_min: float,
         z_max: float,
         is_primary: bool = True,
-        current_ripple = None,
+        current_ripple=None,
     ) -> None:
         """Render plots for a dataset.
-        
+
         Args:
             dataset: The RippleDataset containing raw_volts and ripples
             channel: Channel name to render
@@ -107,7 +118,7 @@ class PlotsView:
         raw_signal = dataset.raw_volts[channel]
         fs = dataset.fs
         ripples = dataset.ripples.get(channel, [])
-        
+
         s = int(max(0, s_sec * fs))
         e = int(min(len(raw_signal), e_sec * fs))
 

@@ -42,7 +42,7 @@ class RippleViewerController:
         self.z_interp: int = z_interp
 
         self.sos = butter(4, [80, 150], btype="band", fs=self.fs, output="sos")
-        
+
         # Track which plots are visible: {dataset_name: {channel: {plot_type: bool}}}
         # plot_type: "raw", "filtered", "hilbert", "spectrogram"
         self.plot_visibility: dict[str, dict[str, dict[str, bool]]] = {}
@@ -80,11 +80,11 @@ class RippleViewerController:
     @property
     def channels(self) -> list[str]:
         return list(self.current_dataset.raw_volts.keys())
-    
+
     def get_dataset(self, dataset_name: str) -> RippleDataset | None:
         """Get a specific dataset by name."""
         return self.ripple_datasets.get(dataset_name)
-    
+
     def get_all_visible_plots(self) -> list[tuple[str, str, str]]:
         """Get all visible plots as (dataset_name, channel, plot_type) tuples."""
         visible_plots = []
@@ -193,6 +193,8 @@ class RippleViewerController:
         """Get list of visible plot types for a dataset/channel."""
         return [
             plot_type
-            for plot_type, visible in self.plot_visibility[dataset_name][channel].items()
+            for plot_type, visible in self.plot_visibility[dataset_name][
+                channel
+            ].items()
             if visible
         ]
