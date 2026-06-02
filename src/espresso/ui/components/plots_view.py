@@ -84,6 +84,9 @@ class PlotsView:
         }
         if plot_type in plots:
             plots[plot_type].setVisible(visible)
+            # Also hide/show colorbar with spectrogram
+            if plot_type == "spectrogram":
+                self.colorbar.setVisible(visible)
 
     def render(
         self,
@@ -119,108 +122,6 @@ class PlotsView:
         fs = dataset.fs
         ripples = dataset.ripples.get(channel, [])
 
-        s = int(max(0, s_sec * fs))
-        e = int(min(len(raw_signal), e_sec * fs))
-
-        if (e - s) < 50:
-            return
-
-        x = np.linspace(s / fs, (e - 1) / fs, e - s)
-        chunk = raw_signal[s:e] * 1e6
-        f_chunk = sosfiltfilt(sos, chunk)
-        env_chunk = np.abs(hilbert(f_chunk))
-
-        # Highlight masks are prepared for ripple windows in the current view.
-        black_mask = np.ones(chunk.shape, dtype=bool)
-        hi_raw = np.full(chunk.shape, np.nan)
-        hi_filt = np.full(chunk.shape, np.nan)
-        hi_env = np.full(chunk.shape, np.nan)
-
-        if is_primary:
-            # Primary dataset: highlight all ripples
-            in_view = [
-                ripple
-                for ripple in ripples
-                if (ripple.end_sec * fs >= s) and (ripple.start_sec * fs <= e)
-            ]
-
-            for ripple in in_view:
-                r_s = int(max(s, ripple.start_sec * fs)) - s
-                r_e = int(min(e, ripple.end_sec * fs)) - s
-
-                if r_e > r_s:
-                    r_s_ext = max(0, r_s - 1)
-                    r_e_ext = min(len(chunk), r_e + 1)
-
-                    hi_raw[r_s_ext:r_e_ext] = chunk[r_s_ext:r_e_ext]
-                    hi_filt[r_s_ext:r_e_ext] = f_chunk[r_s_ext:r_e_ext]
-                    hi_env[r_s_ext:r_e_ext] = env_chunk[r_s_ext:r_e_ext]
-                    black_mask[r_s:r_e] = False
-        else:
-            # Non-primary dataset: only highlight current ripple window
-            if current_ripple is not None:
-                r_s = int(max(s, current_ripple.start_sec * fs)) - s
-                r_e = int(min(e, current_ripple.end_sec * fs)) - s
-
-                if r_e > r_s:
-                    r_s_ext = max(0, r_s - 1)
-                    r_e_ext = min(len(chunk), r_e + 1)
-
-                    hi_raw[r_s_ext:r_e_ext] = chunk[r_s_ext:r_e_ext]
-                    hi_filt[r_s_ext:r_e_ext] = f_chunk[r_s_ext:r_e_ext]
-                    hi_env[r_s_ext:r_e_ext] = env_chunk[r_s_ext:r_e_ext]
-                    black_mask[r_s:r_e] = False
-
-        clean_raw = chunk.copy().astype(float)
-        clean_filt = f_chunk.copy().astype(float)
-        clean_env = env_chunk.copy().astype(float)
-
-        clean_raw[~black_mask] = np.nan
-        clean_filt[~black_mask] = np.nan
-        clean_env[~black_mask] = np.nan
-
-        # The cleaned black traces are drawn first, then red highlight traces overlay the ripple segments.
-        self.c_raw.setData(x, clean_raw)
-        self.c_filt.setData(x, clean_filt)
-        self.c_env.setData(x, clean_env)
-
-        self.c_raw_hi.setData(x, hi_raw)
-        self.c_filt_hi.setData(x, hi_filt)
-        self.c_env_hi.setData(x, hi_env)
-
-        # Spectrogram is generated for the visible signal chunk.
-        nfft = max(1, min(nfft, len(chunk)))
-        noverlap = int(nfft * 0.9)
-        noverlap = min(noverlap, nfft - 1)
-        f, t, sxx = spectrogram(
-            chunk, fs=fs, nperseg=nfft, noverlap=noverlap, window="hann"
-        )
-
-        mask = (f >= spect_low) & (f <= spect_high)
-        if np.any(mask):
-            s_log = 10 * np.log10(sxx[mask, :] + 1e-12)
-            s_z = (s_log - np.mean(s_log, axis=1, keepdims=True)) / (
-                np.std(s_log, axis=1, keepdims=True) + 1e-6
-            )
-
-            self.img.setImage(s_z.T, levels=[z_min, z_max])
-
-            self.win.setRenderHint(QPainter.RenderHint.Antialiasing, True)
-            self.win.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform, True)
-
-            self.img.setRect(
-                pg.QtCore.QRectF(
-                    float(s_sec),
-                    float(spect_low),
-                    float(e_sec - s_sec),
-                    float(spect_high - spect_low),
-                )
-            )
-            self.p_spec.setYRange(spect_low, spect_high, padding=0)
-
-    def update_ripple_marker(self, ripple_peak_sec: float) -> None:
-        for line in self.v_lines:
-            line.setPos(ripple_peak_sec)
         s = int(max(0, s_sec * fs))
         e = int(min(len(raw_signal), e_sec * fs))
 
