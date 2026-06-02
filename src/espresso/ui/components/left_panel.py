@@ -62,11 +62,7 @@ class LeftPanel(QWidget):
                 item.setFlags(item.flags() | Qt.ItemFlag.ItemIsUserCheckable)
 
                 # Only "raw" is checked by default
-                check_state = (
-                    Qt.CheckState.Checked
-                    if plot_type == "raw"
-                    else Qt.CheckState.Unchecked
-                )
+                check_state = Qt.CheckState.Checked
                 item.setCheckState(check_state)
 
                 self.list_widget.addItem(item)
