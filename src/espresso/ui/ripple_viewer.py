@@ -237,10 +237,8 @@ class RippleViewer(QWidget):
 
         current_ripple = c.current_ripple
         if current_ripple is not None:
-            for dataset_name in c.dataset_names:
-                self._plot_renderers[dataset_name].update_ripple_marker(
-                    current_ripple.peak_sec
-                )
+            for renderer in self._plot_renderers.values():
+                renderer.update_ripple_marker(current_ripple.peak_sec)
             if self._last_ripple_idx != c.current_ripple_idx:
                 self._center_view_on_peak(current_ripple.peak_sec)
                 self._last_ripple_idx = c.current_ripple_idx
