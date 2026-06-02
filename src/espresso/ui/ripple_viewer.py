@@ -2,10 +2,8 @@ import sys
 
 import pyqtgraph as pg
 from PyQt6.QtCore import Qt
-from PyQt6.QtWidgets import QApplication, QGraphicsProxyWidget, QVBoxLayout, QWidget
+from PyQt6.QtWidgets import QApplication, QVBoxLayout, QWidget
 
-from espresso.ui.components.bottom_navigation_bar import BottomNavigationBar
-from espresso.ui.components.knob_panel import KnobPanel
 from espresso.ui.components.signal_plot_renderer import SignalPlotRenderer
 from espresso.ui.components.top_bar import TopBar
 from espresso.ui.ripple_viewer_controller import RippleViewerController
@@ -25,6 +23,7 @@ class RippleViewer(QWidget):
         super().__init__()
 
         self.controller = controller
+        self._last_ripple_idx: int | None = None
 
         pg.setConfigOption("background", "w")
         pg.setConfigOption("foreground", "k")
@@ -76,26 +75,6 @@ class RippleViewer(QWidget):
         # Add colorbar
         self.win.addItem(self.plot_renderer.get_colorbar(), 3, 1)
 
-        # 4. Knob Panel Assembly
-        self.knob_panel = KnobPanel(
-            on_changed_callback=self._on_knob_ui_changed, parent=self
-        )
-        self.knob_panel.setFixedHeight(90)
-        self.knob_panel.set_limits(
-            high_max=int(self.controller.fs // 2) - 1,
-            nfft_max=int(self.controller.fs * 0.5),
-        )
-
-        knob_proxy = QGraphicsProxyWidget()
-        knob_proxy.setMinimumHeight(90)
-        knob_proxy.setMaximumHeight(90)
-        knob_proxy.setWidget(self.knob_panel)
-        self.win.addItem(knob_proxy, row=4, col=0)
-
-        # 5. Nav Plot Timeline Assembly
-        self.nav_plot = BottomNavigationBar(self.win, row=5)
-        self.nav_plot.p_nav.scene().sigMouseClicked.connect(self._on_nav_clicked)
-        self.nav_plot.nav_line.sigPositionChanged.connect(self._sync_nav_to_view)
         self.nav_bar.ch_input.clearFocus()
 
         # 6. Plot interactions
@@ -132,14 +111,6 @@ class RippleViewer(QWidget):
 
         return p
 
-    def _on_knob_ui_changed(self) -> None:
-        self.controller.update_knobs(
-            low=self.knob_panel.k_low.value(),
-            high=self.knob_panel.k_high.value(),
-            nfft=self.knob_panel.k_nfft.value(),
-            z_interp_scaled=self.knob_panel.k_interp.value(),
-        )
-
     def _on_channel_input_returned(self) -> None:
         channel_name = self.nav_bar.ch_input.text()
         self.controller.change_channel(channel_name)
@@ -148,28 +119,7 @@ class RippleViewer(QWidget):
 
     def _on_plot_range_changed(self) -> None:
         """Handle when user pans the raw plot."""
-        view_range = self.p_raw.viewRange()[0]
-        center_sec = (view_range[0] + view_range[1]) / 2
-        self.nav_plot.nav_line.blockSignals(True)
-        self.nav_plot.nav_line.setValue(center_sec)
-        self.nav_plot.nav_line.blockSignals(False)
         self.update_ui_from_state()
-
-    def _on_nav_clicked(self, event) -> None:
-        """Handle click on navigation bar."""
-        if event.button() == Qt.MouseButton.LeftButton:
-            pos = event.scenePos()
-            if self.nav_plot.p_nav.sceneBoundingRect().contains(pos):
-                mouse_point = self.nav_plot.p_nav.vb.mapSceneToView(pos)
-                new_time = mouse_point.x()
-                self.nav_plot.nav_line.setValue(new_time)
-                self._sync_nav_to_view()
-
-    def _sync_nav_to_view(self) -> None:
-        """Sync view from navigation line position."""
-        center = self.nav_plot.nav_line.value()
-        half_window = self.controller.view_window_sec / 2
-        self.p_raw.setXRange(center - half_window, center + half_window, padding=0)
 
     def update_ui_from_state(self) -> None:
         c = self.controller
@@ -181,22 +131,14 @@ class RippleViewer(QWidget):
             c.current_channel, current_display_idx, ripples_count
         )
 
-        self.knob_panel.update_labels(c.spect_low, c.spect_high, c.nfft, c.z_interp)
-
-        # Sync visual timelines
-        self.nav_plot.update_plot(
-            total_duration=c.total_duration,
-            n_samples=c.n_samples,
-            fs=c.fs,
-            raw_signal=c.raw[c.current_channel],
-            ripples=c.current_ripple_list,
-        )
-
         current_ripple = c.current_ripple
-        if current_ripple:
-            ripple_center = (current_ripple.start_sec + current_ripple.end_sec) / 2
-            self.nav_plot.update_line_position(ripple_center)
+        if current_ripple is not None:
             self.plot_renderer.update_ripple_marker(current_ripple.peak_sec)
+            if self._last_ripple_idx != c.current_ripple_idx:
+                self._center_view_on_peak(current_ripple.peak_sec)
+                self._last_ripple_idx = c.current_ripple_idx
+        else:
+            self._last_ripple_idx = None
 
         view_range = self.p_raw.viewRange()[0]
         s_sec, e_sec = view_range[0], view_range[1]
@@ -238,6 +180,14 @@ class RippleViewer(QWidget):
         self.p_raw.setXRange(
             max(0, center - half_window),
             min(self.controller.total_duration, center + half_window),
+            padding=0,
+        )
+
+    def _center_view_on_peak(self, peak_sec: float) -> None:
+        half_window = self.controller.view_window_sec / 2
+        self.p_raw.setXRange(
+            max(0, peak_sec - half_window),
+            min(self.controller.total_duration, peak_sec + half_window),
             padding=0,
         )
 

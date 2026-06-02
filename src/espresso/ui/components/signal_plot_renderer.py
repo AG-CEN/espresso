@@ -26,12 +26,18 @@ class SignalPlotRenderer:
 
         # Persistent curve objects
         self.c_raw = self.p_raw.plot(pen=pg.mkPen((33, 33, 33), width=1))
+        self.c_raw.setZValue(0)
         self.c_filt = self.p_filt.plot(pen=pg.mkPen((33, 33, 33), width=1))
+        self.c_filt.setZValue(0)
         self.c_env = self.p_env.plot(pen=pg.mkPen((33, 33, 33), width=1))
+        self.c_env.setZValue(0)
 
         self.c_raw_hi = self.p_raw.plot(pen=pg.mkPen("r", width=2.0))
+        self.c_raw_hi.setZValue(10)
         self.c_filt_hi = self.p_filt.plot(pen=pg.mkPen("r", width=2.0))
+        self.c_filt_hi.setZValue(10)
         self.c_env_hi = self.p_env.plot(pen=pg.mkPen("r", width=2.0))
+        self.c_env_hi.setZValue(10)
 
         self.img = pg.ImageItem()
         self.img.setLookupTable(pg.colormap.get("turbo").getLookupTable())

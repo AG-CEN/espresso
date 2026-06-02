@@ -95,15 +95,6 @@ class RippleViewerController:
             self.current_ripple_idx -= 1
             self.notify_listeners()
 
-    def update_knobs(
-        self, low: int, high: int, nfft: int, z_interp_scaled: int
-    ) -> None:
-        self.spect_low = low
-        self.spect_high = high
-        self.nfft = nfft
-        self.z_interp = int(z_interp_scaled * 32)
-        self.notify_listeners()
-
     def toggle_ripple_highlight(self) -> None:
         """Toggle between 2s and 0.25s view windows."""
         self.view_window_sec = 0.25 if self.view_window_sec >= 0.5 else 2.0
