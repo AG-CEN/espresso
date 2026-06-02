@@ -1,4 +1,5 @@
-from typing import Any, Callable
+from collections.abc import Callable
+from typing import Any
 
 import numpy as np
 from scipy.signal import butter
@@ -67,29 +68,31 @@ class RippleViewerController:
         return None
 
     def change_channel(self, channel_name: str) -> None:
-        if channel_name in self.channels and channel_name != self.current_channel:
+        if channel_name in self.channels:
             self.current_channel = channel_name
             self.current_ripple_idx = 0
             self.notify_listeners()
 
     def next_channel(self) -> None:
-        idx = (self.channels.index(self.current_channel) + 1) % len(self.channels)
-        self.change_channel(self.channels[idx])
+        current_index = self.channels.index(self.current_channel)
+        next_index = min(current_index + 1, len(self.channels) - 1)
+        self.change_channel(self.channels[next_index])
 
     def prev_channel(self) -> None:
-        idx = (self.channels.index(self.current_channel) - 1) % len(self.channels)
-        self.change_channel(self.channels[idx])
+        current_index = self.channels.index(self.current_channel)
+        prev_index = max(current_index - 1, 0)
+        self.change_channel(self.channels[prev_index])
 
     def next_ripple(self) -> None:
         ripples = self.current_ripple_list
-        if ripples:
-            self.current_ripple_idx = (self.current_ripple_idx + 1) % len(ripples)
+        if ripples and self.current_ripple_idx < len(ripples) - 1:
+            self.current_ripple_idx += 1
             self.notify_listeners()
 
     def prev_ripple(self) -> None:
         ripples = self.current_ripple_list
-        if ripples:
-            self.current_ripple_idx = (self.current_ripple_idx - 1) % len(ripples)
+        if ripples and self.current_ripple_idx > 0:
+            self.current_ripple_idx -= 1
             self.notify_listeners()
 
     def update_knobs(

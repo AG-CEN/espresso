@@ -27,7 +27,6 @@ class BottomNavigationBar:
         ripples: list,
     ):
         self.p_nav.clear()
-        self.p_nav.addItem(self.nav_line)
         self.p_nav.setLimits(xMin=0, xMax=total_duration, minXRange=total_duration)
 
         dec = max(500, n_samples // 5000)
@@ -40,6 +39,8 @@ class BottomNavigationBar:
             item.setPen(pg.mkPen("r", width=0.5))
             item.setBrush(pg.mkBrush(255, 0, 0, 100))
             self.p_nav.addItem(item)
+
+        self.p_nav.addItem(self.nav_line)
 
     def update_line_position(self, pos: float):
         self.nav_line.setPos(pos)

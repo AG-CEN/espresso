@@ -45,9 +45,7 @@ class RippleViewer(QWidget):
         self.nav_bar.next_ch_btn.clicked.connect(self.controller.next_channel)
         self.nav_bar.prev_btn.clicked.connect(self.controller.prev_ripple)
         self.nav_bar.next_btn.clicked.connect(self.controller.next_ripple)
-        self.nav_bar.ch_input.returnPressed.connect(
-            lambda: self.controller.change_channel(self.nav_bar.ch_input.text())
-        )
+        self.nav_bar.ch_input.returnPressed.connect(self._on_channel_input_returned)
 
         # 2. Main Window Component
         self.win = pg.GraphicsLayoutWidget()
@@ -82,6 +80,7 @@ class RippleViewer(QWidget):
         self.knob_panel = KnobPanel(
             on_changed_callback=self._on_knob_ui_changed, parent=self
         )
+        self.knob_panel.setFixedHeight(90)
         self.knob_panel.set_limits(
             high_max=int(self.controller.fs // 2) - 1,
             nfft_max=int(self.controller.fs * 0.5),
@@ -89,31 +88,25 @@ class RippleViewer(QWidget):
 
         knob_proxy = QGraphicsProxyWidget()
         knob_proxy.setMinimumHeight(90)
+        knob_proxy.setMaximumHeight(90)
         knob_proxy.setWidget(self.knob_panel)
         self.win.addItem(knob_proxy, row=4, col=0)
 
         # 5. Nav Plot Timeline Assembly
         self.nav_plot = BottomNavigationBar(self.win, row=5)
         self.nav_plot.p_nav.scene().sigMouseClicked.connect(self._on_nav_clicked)
+        self.nav_plot.nav_line.sigPositionChanged.connect(self._sync_nav_to_view)
         self.nav_bar.ch_input.clearFocus()
 
         # 6. Plot interactions
         self.p_raw.sigRangeChanged.connect(self._on_plot_range_changed)
 
-        # 7. Set initial view to first ripple
-        if self.controller.current_ripple:
-            center = (
-                self.controller.current_ripple.start_sec
-                + self.controller.current_ripple.end_sec
-            ) / 2
-            half_window = self.controller.view_window_sec / 2
-            self.p_raw.setXRange(
-                max(0, center - half_window),
-                min(self.controller.total_duration, center + half_window),
-                padding=0,
-            )
-        else:
-            self.p_raw.setXRange(0, self.controller.view_window_sec, padding=0)
+        # 7. Set initial view to the first 2s window
+        self.p_raw.setXRange(
+            0,
+            min(self.controller.view_window_sec, self.controller.total_duration),
+            padding=0,
+        )
 
     def _add_grilled_plot(
         self, row: int, title: str, grid_color: tuple = ("k",)
@@ -146,6 +139,12 @@ class RippleViewer(QWidget):
             nfft=self.knob_panel.k_nfft.value(),
             z_interp_scaled=self.knob_panel.k_interp.value(),
         )
+
+    def _on_channel_input_returned(self) -> None:
+        channel_name = self.nav_bar.ch_input.text()
+        self.controller.change_channel(channel_name)
+        if channel_name not in self.controller.channels:
+            self.update_ui_from_state()
 
     def _on_plot_range_changed(self) -> None:
         """Handle when user pans the raw plot."""
@@ -197,41 +196,38 @@ class RippleViewer(QWidget):
         if current_ripple:
             ripple_center = (current_ripple.start_sec + current_ripple.end_sec) / 2
             self.nav_plot.update_line_position(ripple_center)
-
-            # Update vertical markers
             self.plot_renderer.update_ripple_marker(current_ripple.peak_sec)
 
-            # Render all signal plots
-            view_range = self.p_raw.viewRange()[0]
-            s_sec, e_sec = view_range[0], view_range[1]
+        view_range = self.p_raw.viewRange()[0]
+        s_sec, e_sec = view_range[0], view_range[1]
 
-            self.plot_renderer.render(
-                raw_signal=c.raw[c.current_channel],
-                fs=c.fs,
-                sos=c.sos,
-                ripples=c.current_ripple_list,
-                s_sec=s_sec,
-                e_sec=e_sec,
-                spect_low=c.spect_low,
-                spect_high=c.spect_high,
-                nfft=c.nfft,
-                z_min=c.z_min,
-                z_max=c.z_max,
-            )
+        self.plot_renderer.render(
+            raw_signal=c.raw[c.current_channel],
+            fs=c.fs,
+            sos=c.sos,
+            ripples=c.current_ripple_list,
+            s_sec=s_sec,
+            e_sec=e_sec,
+            spect_low=c.spect_low,
+            spect_high=c.spect_high,
+            nfft=c.nfft,
+            z_min=c.z_min,
+            z_max=c.z_max,
+        )
 
-    def keyPressEvent(self, event) -> None:  # noqa: N802
-        if event.key() == Qt.Key.Key_Right:
+    def keyPressEvent(self, a0) -> None:  # noqa: N802
+        if a0.key() == Qt.Key.Key_Right:
             self.controller.next_ripple()
-        elif event.key() == Qt.Key.Key_Left:
+        elif a0.key() == Qt.Key.Key_Left:
             self.controller.prev_ripple()
-        elif event.key() == Qt.Key.Key_Down:
+        elif a0.key() == Qt.Key.Key_Down:
             self.controller.next_channel()
-        elif event.key() == Qt.Key.Key_Up:
+        elif a0.key() == Qt.Key.Key_Up:
             self.controller.prev_channel()
-        elif event.key() == Qt.Key.Key_Space:
+        elif a0.key() == Qt.Key.Key_Space:
             self._toggle_zoom()
         else:
-            super().keyPressEvent(event)
+            super().keyPressEvent(a0)
 
     def _toggle_zoom(self) -> None:
         """Toggle between 2s and 0.25s zoom levels."""

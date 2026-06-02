@@ -1,7 +1,7 @@
 from collections.abc import Callable
 
 from PyQt6.QtCore import Qt
-from PyQt6.QtWidgets import QDial, QGridLayout, QLabel, QWidget
+from PyQt6.QtWidgets import QDial, QGridLayout, QLabel, QSizePolicy, QWidget
 
 
 class KnobPanel(QWidget):
@@ -10,8 +10,8 @@ class KnobPanel(QWidget):
     def __init__(self, on_changed_callback: Callable[[], None], parent=None):
         super().__init__(parent)
         self.on_changed = on_changed_callback
-        self.layout = QGridLayout(self)
-        self.layout.setContentsMargins(0, 0, 0, 0)
+        self.grid_layout = QGridLayout(self)
+        self.grid_layout.setContentsMargins(0, 0, 0, 0)
         self.setStyleSheet("background-color: transparent;")
         self.setMaximumHeight(90)
         self.labels: dict[str, QLabel] = {}
@@ -31,15 +31,22 @@ class KnobPanel(QWidget):
         single_step: int = 5,
     ) -> QDial:
         dial = QDial()
+        dial.setFixedSize(48, 48)
         dial.setRange(min_v, max_v)
         dial.setValue(curr_v)
         dial.setSingleStep(single_step)
+        dial.setNotchesVisible(True)
         dial.valueChanged.connect(self.on_changed)
 
         lbl = QLabel(f"{label}: {curr_v}")
+        lbl.setStyleSheet("font-size: 14px; color: #666;")
+        lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        lbl.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Preferred)
+
         self.labels[label] = lbl
-        self.layout.addWidget(lbl, 0, col, alignment=Qt.AlignmentFlag.AlignCenter)
-        self.layout.addWidget(dial, 1, col)
+        self.grid_layout.addWidget(dial, 1, col, alignment=Qt.AlignmentFlag.AlignCenter)
+        self.grid_layout.addWidget(lbl, 2, col)
+        self.grid_layout.setColumnStretch(col, 1)
         return dial
 
     def set_limits(self, high_max: int, nfft_max: int):

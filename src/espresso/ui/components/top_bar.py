@@ -43,4 +43,4 @@ class TopBar(QWidget):
 
     def update_display(self, channel: str, current_idx: int, total: int):
         self.ch_input.setText(channel)
-        self.info_label.setText(f"{current_idx}/{total}")
+        self.info_label.setText(f"{current_idx} / {total}")
