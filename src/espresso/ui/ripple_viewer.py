@@ -2,8 +2,15 @@ import sys
 
 import pyqtgraph as pg
 from PyQt6.QtCore import Qt
-from PyQt6.QtWidgets import QApplication, QVBoxLayout, QWidget
+from PyQt6.QtWidgets import (
+    QApplication,
+    QHBoxLayout,
+    QVBoxLayout,
+    QWidget,
+)
 
+from espresso.models.ripple_dataset import RippleDataset
+from espresso.ui.components.left_panel import LeftPanel
 from espresso.ui.components.plots_view import PlotsView
 from espresso.ui.components.top_bar import TopBar
 from espresso.ui.ripple_viewer_controller import RippleViewerController
@@ -12,7 +19,11 @@ from espresso.ui.ripple_viewer_controller import RippleViewerController
 class RippleViewer(QWidget):
     """Main Orchestrator Frame UI assembly layer."""
 
-    def __init__(self, controller: RippleViewerController):
+    def __init__(
+        self,
+        controller: RippleViewerController,
+        ripple_datasets: dict[str, RippleDataset] | None = None,
+    ):
         # This obtains or creates the QApplication instance used by the viewer.
         self.app = QApplication.instance()
         if self.app is None:
@@ -24,6 +35,7 @@ class RippleViewer(QWidget):
         super().__init__()
 
         self.controller = controller
+        self.ripple_datasets = ripple_datasets or {}
         self._last_ripple_idx: int | None = None
 
         pg.setConfigOption("background", "w")
@@ -46,8 +58,20 @@ class RippleViewer(QWidget):
         self.nav_bar.next_btn.clicked.connect(self.controller.next_ripple)
         self.nav_bar.ch_input.returnPressed.connect(self._on_channel_input_returned)
 
+        # This creates the main horizontal layout with left panel and plots.
+        main_layout = QHBoxLayout()
+
+        # Left panel for dataset/view selection.
+        self.left_panel = LeftPanel(self)
+        if self.ripple_datasets:
+            self.left_panel.load_datasets(self.ripple_datasets)
+        main_layout.addWidget(self.left_panel)
+
+        # Right side: plots area.
         self.win = pg.GraphicsLayoutWidget()
-        layout.addWidget(self.win)
+        main_layout.addWidget(self.win, stretch=1)
+
+        layout.addLayout(main_layout)
 
         # This creates the four stacked plots for raw, filtered, envelope, and spectrogram.
         self.p_raw = self._add_grilled_plot(0, "Raw LFP")
