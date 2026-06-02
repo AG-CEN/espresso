@@ -52,7 +52,12 @@ class PlotsView:
         self.img.setLookupTable(pg.colormap.get("turbo").getLookupTable())
         self.p_spec.addItem(self.img)
 
-        self.colorbar = pg.ColorBarItem(values=(-0.5, 2.0), colorMap="turbo")
+        self.colorbar = pg.ColorBarItem(
+            values=(-0.5, 2.0),
+            colorMap="turbo",
+            width=20,
+        )
+        self.colorbar.setMaximumWidth(20)
         self.colorbar.setImageItem(self.img)
 
         # Vertical marker lines are added to each plot for the ripple peak position.

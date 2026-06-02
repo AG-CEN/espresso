@@ -161,8 +161,8 @@ class RippleViewer(QWidget):
             }
 
             # Add colorbar to spectrogram plot's scene (doesn't affect layout grid)
-            p_spec.addItem(renderer.colorbar)
-
+            p_spec.layout.addItem(renderer.colorbar, 2, 3)
+            p_spec.layout.setColumnFixedWidth(3, 20)
             # Connect range change signal only for first dataset
             if dataset_idx == 0:
                 p_raw.sigRangeChanged.connect(self._on_plot_range_changed)
