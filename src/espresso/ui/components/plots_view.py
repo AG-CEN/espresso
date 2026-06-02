@@ -125,7 +125,6 @@ class PlotsView:
             return
         raw_signal = dataset.raw_volts[channel]
         fs = dataset.fs
-        ripples = dataset.ripples.get(channel, [])
 
         s = int(max(0, s_sec * fs))
         e = int(min(len(raw_signal), e_sec * fs))
@@ -144,40 +143,26 @@ class PlotsView:
         hi_filt = np.full(chunk.shape, np.nan)
         hi_env = np.full(chunk.shape, np.nan)
 
-        if is_primary:
-            # Primary dataset: highlight all ripples
-            in_view = [
-                ripple
-                for ripple in ripples
-                if (ripple.end_sec * fs >= s) and (ripple.start_sec * fs <= e)
-            ]
 
-            for ripple in in_view:
-                r_s = int(max(s, ripple.start_sec * fs)) - s
-                r_e = int(min(e, ripple.end_sec * fs)) - s
+        ripples = dataset.ripples.get(channel, [])
+        in_view = [
+            ripple
+            for ripple in ripples
+            if (ripple.end_sec * fs >= s) and (ripple.start_sec * fs <= e)
+        ]
 
-                if r_e > r_s:
-                    r_s_ext = max(0, r_s - 1)
-                    r_e_ext = min(len(chunk), r_e + 1)
+        for ripple in in_view:
+            r_s = int(max(s, ripple.start_sec * fs)) - s
+            r_e = int(min(e, ripple.end_sec * fs)) - s
 
-                    hi_raw[r_s_ext:r_e_ext] = chunk[r_s_ext:r_e_ext]
-                    hi_filt[r_s_ext:r_e_ext] = f_chunk[r_s_ext:r_e_ext]
-                    hi_env[r_s_ext:r_e_ext] = env_chunk[r_s_ext:r_e_ext]
-                    black_mask[r_s:r_e] = False
-        else:
-            # Non-primary dataset: only highlight current ripple window
-            if current_ripple is not None:
-                r_s = int(max(s, current_ripple.start_sec * fs)) - s
-                r_e = int(min(e, current_ripple.end_sec * fs)) - s
+            if r_e > r_s:
+                r_s_ext = max(0, r_s - 1)
+                r_e_ext = min(len(chunk), r_e + 1)
 
-                if r_e > r_s:
-                    r_s_ext = max(0, r_s - 1)
-                    r_e_ext = min(len(chunk), r_e + 1)
-
-                    hi_raw[r_s_ext:r_e_ext] = chunk[r_s_ext:r_e_ext]
-                    hi_filt[r_s_ext:r_e_ext] = f_chunk[r_s_ext:r_e_ext]
-                    hi_env[r_s_ext:r_e_ext] = env_chunk[r_s_ext:r_e_ext]
-                    black_mask[r_s:r_e] = False
+                hi_raw[r_s_ext:r_e_ext] = chunk[r_s_ext:r_e_ext]
+                hi_filt[r_s_ext:r_e_ext] = f_chunk[r_s_ext:r_e_ext]
+                hi_env[r_s_ext:r_e_ext] = env_chunk[r_s_ext:r_e_ext]
+                black_mask[r_s:r_e] = False
 
         clean_raw = chunk.copy().astype(float)
         clean_filt = f_chunk.copy().astype(float)

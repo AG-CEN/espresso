@@ -36,8 +36,8 @@ def generate_synthetic_lfp(fs: float, duration: float) -> tuple[np.ndarray, np.n
     signal = noise + theta_oscillation
 
     ripple_protocols = [
-        {"start_time": 2.0, "frequency": 180.0, "amplitude": 4.0},
-        {"start_time": 4.5, "frequency": 200.0, "amplitude": 3.5},
+        {"start_time": 0.6, "frequency": 180.0, "amplitude": 4.0},
+        {"start_time": 1.5, "frequency": 200.0, "amplitude": 3.5},
         {"start_time": 7.1, "frequency": 220.0, "amplitude": 5.0},
     ]
 
@@ -83,25 +83,13 @@ def run_ripple_analysis() -> None:
             ),
             "another": RippleDataset(
                 raw_volts={"channel_0": signal_raw},
-                ripples={"channel_0": events},
+                ripples={"channel_0": [events[0], events[2]]},
                 fs=fs_raw,
             ),
         }
     )
     viewer = RippleViewer(
         controller=viewer_controller,
-        ripple_datasets={
-            "raw": RippleDataset(
-                raw_volts={"channel_0": signal_raw},
-                ripples={"channel_0": events},
-                fs=fs_raw,
-            ),
-            "another": RippleDataset(
-                raw_volts={"channel_0": signal_raw},
-                ripples={"channel_0": events},
-                fs=fs_raw,
-            ),
-        },
     )
     viewer.run()
 
