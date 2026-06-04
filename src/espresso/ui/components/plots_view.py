@@ -4,7 +4,7 @@ import numpy as np
 import pyqtgraph as pg
 from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QPainter
-from scipy.signal import hilbert, sosfiltfilt, spectrogram
+from scipy.signal import butter, hilbert, sosfiltfilt, spectrogram
 
 from espresso.models.ripple_dataset import RippleDataset
 
@@ -70,14 +70,7 @@ class PlotsView:
             )
             p.addItem(line)
             self.v_lines.append(line)
-
-    def set_visible(self, visible: bool) -> None:
-        """Control visibility of all plots in this view."""
-        self.visible = visible
-        self.p_raw.setVisible(visible)
-        self.p_filt.setVisible(visible)
-        self.p_env.setVisible(visible)
-        self.p_spec.setVisible(visible)
+        self.sos = butter(4, [80, 150], btype="band", fs=self.fs, output="sos")
 
     def set_plot_visible(self, plot_type: str, visible: bool) -> None:
         """Show/hide a specific plot type."""
@@ -89,9 +82,6 @@ class PlotsView:
         }
         if plot_type in plots:
             plots[plot_type].setVisible(visible)
-            # Also hide/show colorbar with spectrogram
-            if plot_type == "spectrogram":
-                self.colorbar.setVisible(visible)
 
     def render(
         self,
@@ -211,6 +201,3 @@ class PlotsView:
     def update_ripple_marker(self, ripple_peak_sec: float) -> None:
         for line in self.v_lines:
             line.setPos(ripple_peak_sec)
-
-    def get_colorbar(self) -> pg.ColorBarItem:
-        return self.colorbar

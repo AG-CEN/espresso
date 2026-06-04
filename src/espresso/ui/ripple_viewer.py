@@ -13,40 +13,27 @@ from espresso.models.ripple_dataset import RippleDataset
 from espresso.ui.components.left_panel import LeftPanel
 from espresso.ui.components.plots_view import PlotsView
 from espresso.ui.components.top_bar import TopBar
-from espresso.ui.ripple_viewer_controller import RippleViewerController
+from espresso.ui.state.ripple_viewer_controller import RippleViewerController
+from espresso.ui.state.ripple_viewer_state import RippleViewerState
 
 
 class RippleViewer(QWidget):
     """Display multiple datasets in columns, each with 4 plots."""
 
-    """Main Orchestrator Frame UI assembly layer.
-
-    Displays multiple datasets simultaneously with shared channel navigation.
-    Ripple controls (next/prev) apply only to the first dataset.
-    All X-axis ranges are synchronized to the first dataset.
-    """
-
     def __init__(
         self,
         controller: RippleViewerController,
-        ripple_datasets: dict[str, RippleDataset] | None = None,
     ):
-        # This obtains or creates the QApplication instance used by the viewer.
-        self.app = QApplication.instance()
-        if self.app is None:
-            self.app = QApplication(sys.argv)
-            self._owns_app = True
-        else:
-            self._owns_app = False
+        self.app = QApplication(sys.argv)
+        self._owns_app = True
 
         super().__init__()
 
         self.controller = controller
-        self.ripple_datasets = ripple_datasets or controller.ripple_datasets
+        self.ripple_datasets = controller.ripple_datasets
         self._last_ripple_idx: int | None = None
 
-        # Store plot renderers and items for each dataset
-        self._plot_renderers: dict[str, PlotsView] = {}  # {dataset_name: PlotsView}
+        self._plot_renderers: dict[str, PlotsView] = {}
         self._plot_items: dict[str, dict[str, pg.PlotItem]] = {}
 
         pg.setConfigOption("background", "w")
@@ -54,45 +41,40 @@ class RippleViewer(QWidget):
         pg.setConfigOptions(useOpenGL=True, antialias=True)
 
         self._init_layout()
-        self.controller.add_listener(self.update_ui_from_state)
-        self.left_panel.plot_visibility_changed.connect(
-            self._on_plot_visibility_changed
-        )
-        self.update_ui_from_state()
+
+        self._state_subscription = self.controller.state.subscribe(self.build)
 
     def _init_layout(self) -> None:
         layout = QVBoxLayout(self)
 
-        self.nav_bar = TopBar(self)
-        layout.addWidget(self.nav_bar)
+        self.top_bar = TopBar(
+            self,
+            on_prev_channel=self.controller.prev_channel,
+            on_next_channel=self.controller.next_channel,
+            on_prev_ripple=self.controller.prev_ripple,
+            on_next_ripple=self.controller.next_ripple,
+            on_channel_change=self.controller.change_channel,
+        )
 
-        # Connect navigation controls to first dataset only
-        self.nav_bar.prev_ch_btn.clicked.connect(self.controller.prev_channel)
-        self.nav_bar.next_ch_btn.clicked.connect(self.controller.next_channel)
-        self.nav_bar.prev_btn.clicked.connect(self.controller.prev_ripple)
-        self.nav_bar.next_btn.clicked.connect(self.controller.next_ripple)
-        self.nav_bar.ch_input.returnPressed.connect(self._on_channel_input_returned)
+        layout.addWidget(self.top_bar)
 
-        # This creates the main horizontal layout with left panel and plots.
         main_layout = QHBoxLayout()
 
-        # Left panel for dataset/view selection.
-        self.left_panel = LeftPanel(self)
-        # Always load from controller's ripple_datasets
-        if self.controller.ripple_datasets:
-            self.left_panel.load_datasets(self.controller.ripple_datasets)
+        self.left_panel = LeftPanel(
+            self,
+            datasets=self.controller.ripple_datasets,
+            on_plot_visibility_toggled=self.controller.on_plot_visibility_toggled,
+        )
         main_layout.addWidget(self.left_panel)
 
-        # Right side: scrollable plots area for multiple datasets
         self.win = pg.GraphicsLayoutWidget()
         main_layout.addWidget(self.win, stretch=1)
 
         layout.addLayout(main_layout)
 
-        # Create plot areas for each dataset
         self._create_dataset_plots()
 
-        self.nav_bar.ch_input.clearFocus()
+        # self.top_bar.ch_input.clearFocus()
 
     def _create_dataset_plots(self) -> None:
         """Create plot grid for all datasets (stacked vertically: 4 rows per dataset)."""
@@ -163,15 +145,14 @@ class RippleViewer(QWidget):
             # Add colorbar to spectrogram plot's scene (doesn't affect layout grid)
             p_spec.layout.addItem(renderer.colorbar, 2, 3)
             p_spec.layout.setColumnFixedWidth(3, 20)
-            # Connect range change signal only for first dataset
-            if dataset_idx == 0:
-                p_raw.sigRangeChanged.connect(self._on_plot_range_changed)
-                first_duration = self.controller.total_duration
-                p_raw.setXRange(
-                    0,
-                    min(self.controller.view_window_sec, first_duration),
-                    padding=0,
-                )
+
+            # TODO p_raw.sigRangeChanged.connect(self._on_plot_range_changed)
+            # first_duration = self.controller.total_duration
+            # p_raw.setXRange(
+            #     0,
+            #     min(self.controller.view_window_sec, first_duration),
+            #     padding=0,
+            # )
 
     def _add_grilled_plot(
         self,
@@ -205,33 +186,13 @@ class RippleViewer(QWidget):
 
         return p
 
-    def _on_channel_input_returned(self) -> None:
-        channel_name = self.nav_bar.ch_input.text()
-        self.controller.change_channel(channel_name)
-        self.update_ui_from_state()
-
-    def _on_plot_range_changed(self) -> None:
-        self.update_ui_from_state()
-
-    def _on_plot_visibility_changed(
-        self, dataset_name: str, plot_type: str, visible: bool
-    ) -> None:
-        """Handle plot visibility changes from left panel."""
-        # Apply to current channel
-        current_channel = self.controller.current_channel
-        self.controller.set_plot_visibility(
-            dataset_name, current_channel, plot_type, visible
-        )
-        self.update_ui_from_state()
-
-    def update_ui_from_state(self) -> None:
+    def build(self, state: RippleViewerState) -> None:
         """Update all plots based on controller state."""
         c = self.controller
 
-        # Update nav bar with current ripple info (from first dataset)
         ripples_count = len(c.current_ripples) if c.current_ripples else 0
         current_display_idx = c.current_ripple_idx + 1 if ripples_count > 0 else 0
-        self.nav_bar.update_display(
+        self.top_bar.update_display(
             c.current_channel, current_display_idx, ripples_count
         )
 
@@ -269,7 +230,6 @@ class RippleViewer(QWidget):
                 continue
 
             renderer = self._plot_renderers[dataset_name]
-            is_primary = dataset_name == first_dataset_name
 
             # Control visibility of each plot type
             for plot_type in ["raw", "filtered", "hilbert", "spectrogram"]:
@@ -296,7 +256,7 @@ class RippleViewer(QWidget):
                 z_max=c.z_max,
             )
 
-    def keyPressEvent(self, a0) -> None:  # noqa: N802
+    def keyPressEvent(self, a0) -> None:
         if a0.key() == Qt.Key.Key_Right:
             self.controller.next_ripple()
         elif a0.key() == Qt.Key.Key_Left:

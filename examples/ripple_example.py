@@ -5,7 +5,7 @@ from espresso.hfo.ripple_detector import detect_ripples
 from espresso.models.ripple_dataset import RippleDataset
 from espresso.models.ripple_event import RippleEvent
 from espresso.ui.ripple_viewer import RippleViewer
-from espresso.ui.ripple_viewer_controller import RippleViewerController
+from espresso.ui.state.ripple_viewer_controller import RippleViewerController
 
 
 def inject_ripple(

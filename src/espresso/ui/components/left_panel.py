@@ -1,4 +1,6 @@
-from PyQt6.QtCore import Qt, pyqtSignal
+from typing import Protocol
+
+from PyQt6.QtCore import Qt
 from PyQt6.QtWidgets import (
     QListWidget,
     QListWidgetItem,
@@ -8,16 +10,32 @@ from PyQt6.QtWidgets import (
 )
 
 from espresso.models.ripple_dataset import RippleDataset
+from espresso.ui.state.ripple_viewer_state import PlotId, PlotType
+
+
+class PlotVisibilityCallback(Protocol):
+    def __call__(
+        self,
+        *,
+        plot_id: PlotId,
+        new_value: bool,
+    ) -> None: ...
 
 
 class LeftPanel(QWidget):
     """Left sidebar panel for controlling plot visibility."""
 
-    # Signal: (dataset_name, plot_type, is_visible)
-    plot_visibility_changed = pyqtSignal(str, str, bool)
-
-    def __init__(self, parent=None):
+    def __init__(
+        self,
+        parent: QWidget,
+        datasets: dict[str, RippleDataset],
+        on_plot_visibility_toggled: PlotVisibilityCallback,
+    ):
         super().__init__(parent)
+
+        self.datasets = datasets
+        self.on_plot_visibility_toggled = on_plot_visibility_toggled
+
         self.is_expanded = True
 
         layout = QVBoxLayout(self)
@@ -33,46 +51,34 @@ class LeftPanel(QWidget):
         self.list_widget.itemChanged.connect(self._on_item_changed)
         layout.addWidget(self.list_widget)
 
-        self.datasets = {}
-        self._items_map = {}  # Map (dataset_name, plot_type) -> QListWidgetItem
+        self._items_map: dict[PlotId, QListWidgetItem] = {}
+        self._load_datasets(ripple_datasets=datasets)
 
-    def load_datasets(self, ripple_datasets: dict[str, RippleDataset]) -> None:
-        """Load datasets and populate plot checkboxes.
+    def _load_datasets(self, ripple_datasets: dict[str, RippleDataset]) -> None:
+        plot_types: list[PlotType] = [
+            PlotType.RAW,
+            PlotType.FILTERED,
+            PlotType.HILBERT,
+            PlotType.SPECTROGRAM,
+        ]
 
-        Args:
-            ripple_datasets: Dictionary mapping dataset names to RippleDataset objects.
-        """
-        self.list_widget.clear()
-        self._items_map.clear()
-        self.datasets = ripple_datasets
-
-        plot_types = ["raw", "filtered", "hilbert", "spectrogram"]
-        plot_labels = {
-            "raw": "Raw",
-            "filtered": "Filtered",
-            "hilbert": "Envelope",
-            "spectrogram": "Spectrogram",
-        }
-
-        for dataset_name in ripple_datasets.keys():
+        for dataset_name in ripple_datasets:
             for plot_type in plot_types:
-                label = f"{dataset_name} {plot_labels[plot_type]}"
-
-                item = QListWidgetItem(label)
+                item = QListWidgetItem(text=f"{dataset_name} {plot_type}")
                 item.setFlags(item.flags() | Qt.ItemFlag.ItemIsUserCheckable)
-
-                check_state = Qt.CheckState.Checked
-                item.setCheckState(check_state)
-
+                item.setCheckState(state=Qt.CheckState.Checked)
                 self.list_widget.addItem(item)
                 self._items_map[(dataset_name, plot_type)] = item
 
     def _on_item_changed(self, item: QListWidgetItem) -> None:
         """Handle checkbox state changes."""
-        for (dataset_name, plot_type), map_item in self._items_map.items():
+        for plot_id, map_item in self._items_map.items():
             if map_item is item:
-                is_checked = item.checkState() == Qt.CheckState.Checked
-                self.plot_visibility_changed.emit(dataset_name, plot_type, is_checked)
+                is_checked: bool = item.checkState() == Qt.CheckState.Checked
+                self.on_plot_visibility_toggled(
+                    plot_id=plot_id,
+                    new_value=is_checked,
+                )
                 return
 
     def toggle_panel(self) -> None:
