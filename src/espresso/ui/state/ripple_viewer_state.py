@@ -1,4 +1,4 @@
-from dataclasses import dataclass, field, replace
+from dataclasses import dataclass, replace
 from enum import Enum
 from typing import Any, TypeAlias
 
@@ -10,13 +10,13 @@ from espresso.models.ripple_event import RippleEvent
 class PlotType(str, Enum):
     """Supported signal visualization modes."""
 
-    RAW = "raw"
-    FILTERED = "filtered"
-    HILBERT = "hilbert"
-    SPECTROGRAM = "spectrogram"
+    raw = "raw"
+    filtered = "filtered"
+    envelope = "envelope"
+    spectrogram = "spectrogram"
 
 
-# Unique identifier of a plot (dataset_name, plot_type).
+# Tuple of (dataset label, plot type) makes a unique id for the plot.
 PlotId: TypeAlias = tuple[str, PlotType]
 
 
@@ -38,6 +38,10 @@ class RippleViewerState:
 
     view_window_sec: float = 2.0
     """The temporal width of the chart viewport in seconds (typically 2.0s or 0.25s)."""
+
+    @property
+    def current_ripple(self) -> RippleEvent:
+        return self.ripples[self.current_ripple_index]
 
     def copy_with(self, **changes: Any) -> Self:
         """

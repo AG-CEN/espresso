@@ -28,7 +28,16 @@ languageSettings:
       - /from .* import .*/g
       - /import .*/g
 words:
+  - colorbar
+  - filt
   - ftype
+  - hann
   - hanning
   - interp
+  - keepdims
+  - nfft
+  - noverlap
+  - nperseg
+  - Pixmap
+  - sosfiltfilt
   - spect

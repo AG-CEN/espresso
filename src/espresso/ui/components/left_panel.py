@@ -28,12 +28,12 @@ class LeftPanel(QWidget):
     def __init__(
         self,
         parent: QWidget,
-        datasets: dict[str, RippleDataset],
+        ripple_datasets: list[RippleDataset],
         on_plot_visibility_toggled: PlotVisibilityCallback,
     ):
         super().__init__(parent)
 
-        self.datasets = datasets
+        self.ripple_datasets = ripple_datasets
         self.on_plot_visibility_toggled = on_plot_visibility_toggled
 
         self.is_expanded = True
@@ -44,7 +44,7 @@ class LeftPanel(QWidget):
         self.toggle_btn = QPushButton("▼")
         self.toggle_btn.setMaximumHeight(30)
         self.toggle_btn.setMaximumWidth(30)
-        self.toggle_btn.clicked.connect(self.toggle_panel)
+        self.toggle_btn.clicked.connect(self._toggle_panel)
         layout.addWidget(self.toggle_btn)
 
         self.list_widget = QListWidget()
@@ -52,23 +52,25 @@ class LeftPanel(QWidget):
         layout.addWidget(self.list_widget)
 
         self._items_map: dict[PlotId, QListWidgetItem] = {}
-        self._load_datasets(ripple_datasets=datasets)
+        self._init_ui()
 
-    def _load_datasets(self, ripple_datasets: dict[str, RippleDataset]) -> None:
+    def _init_ui(self) -> None:
         plot_types: list[PlotType] = [
-            PlotType.RAW,
-            PlotType.FILTERED,
-            PlotType.HILBERT,
-            PlotType.SPECTROGRAM,
+            PlotType.raw,
+            PlotType.filtered,
+            PlotType.envelope,
+            PlotType.spectrogram,
         ]
 
-        for dataset_name in ripple_datasets:
+        for ripple_dataset in self.ripple_datasets:
             for plot_type in plot_types:
-                item = QListWidgetItem(text=f"{dataset_name} {plot_type}")
+                item = QListWidgetItem(
+                    f"{ripple_dataset.label} {plot_type.name.capitalize()}"
+                )
                 item.setFlags(item.flags() | Qt.ItemFlag.ItemIsUserCheckable)
-                item.setCheckState(state=Qt.CheckState.Checked)
+                item.setCheckState(Qt.CheckState.Checked)
                 self.list_widget.addItem(item)
-                self._items_map[(dataset_name, plot_type)] = item
+                self._items_map[(ripple_dataset.label, plot_type)] = item
 
     def _on_item_changed(self, item: QListWidgetItem) -> None:
         """Handle checkbox state changes."""
@@ -81,7 +83,7 @@ class LeftPanel(QWidget):
                 )
                 return
 
-    def toggle_panel(self) -> None:
+    def _toggle_panel(self) -> None:
         """Toggle panel expansion."""
         self.is_expanded = not self.is_expanded
         self.list_widget.setVisible(self.is_expanded)

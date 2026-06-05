@@ -4,6 +4,8 @@ from typing import Protocol
 from PyQt6.QtCore import Qt
 from PyQt6.QtWidgets import QHBoxLayout, QLabel, QLineEdit, QPushButton, QWidget
 
+from espresso.ui.state.ripple_viewer_state import RippleViewerState
+
 
 class ChannelChangeCallback(Protocol):
     def __call__(self, *, channel_name: str) -> None: ...
@@ -77,6 +79,8 @@ class TopBar(QWidget):
                 lambda: self._on_channel_change(channel_name=self.ch_input.text())
             )
 
-    def update_display(self, channel: str, current_idx: int, total: int):
-        self.ch_input.setText(channel)
-        self.info_label.setText(f"{current_idx} / {total}")
+    def build(self, ripple_viewer_state: RippleViewerState):
+        self.ch_input.setText(ripple_viewer_state.channel_name)
+        self.info_label.setText(
+            f"{ripple_viewer_state.current_ripple_index + 1} / {len(ripple_viewer_state.ripples)}",
+        )

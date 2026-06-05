@@ -75,18 +75,20 @@ def run_ripple_analysis() -> None:
         print(peak)
 
     viewer_controller = RippleViewerController(
-        ripple_datasets={
-            "raw": RippleDataset(
+        ripple_datasets=[
+            RippleDataset(
+                label="raw",
                 raw_volts={"channel_0": signal_raw},
                 ripples={"channel_0": events[0:2]},
                 fs=fs_raw,
             ),
-            "another": RippleDataset(
-                raw_volts={"channel_0": signal_raw},
+            RippleDataset(
+                label="another",
+                raw_volts={"channel_0": data_2khz},
                 ripples={"channel_0": [events[0], events[2]]},
-                fs=fs_raw,
+                fs=2000,
             ),
-        }
+        ]
     )
     viewer = RippleViewer(
         controller=viewer_controller,
