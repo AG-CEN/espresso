@@ -33,7 +33,13 @@ class TopBar(QWidget):
         self.ch_input.setFixedWidth(80)
         self.ch_input.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.ch_input.setStyleSheet("""
-            QLineEdit { font-weight: bold; font-size: 14px; border: 1px solid #999; border-radius: 4px; padding: 2px; }
+            QLineEdit {
+                font-weight: bold;
+                font-size: 14px;
+                border: 1px solid #999;
+                border-radius: 4px;
+                padding: 2px;
+            }
         """)
 
         self.info_label = QLabel("0/0")
@@ -82,5 +88,7 @@ class TopBar(QWidget):
     def build(self, ripple_viewer_state: RippleViewerState):
         self.ch_input.setText(ripple_viewer_state.channel_name)
         self.info_label.setText(
-            f"{ripple_viewer_state.current_ripple_index + 1} / {len(ripple_viewer_state.ripples)}",
+            f"{ripple_viewer_state.current_ripple_index + 1}"
+            f" / "
+            f"{len(ripple_viewer_state.ripples)}",
         )

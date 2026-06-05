@@ -1,7 +1,6 @@
 from dataclasses import dataclass, field
 
 import numpy as np
-from pydantic import BaseModel
 
 from espresso.models.ripple_event import RippleEvent
 
