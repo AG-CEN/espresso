@@ -2,7 +2,7 @@ import numpy as np
 from scipy.signal import decimate
 
 from espresso.hfo.ripple_detector import detect_ripples
-from espresso.models.ripple_dataset import RippleDataset
+from espresso.models.ripple_dataset import RippleDataset, RippleViewerParams
 from espresso.models.ripple_event import RippleEvent
 from espresso.ui.ripple_viewer import RippleViewer
 from espresso.ui.state.ripple_viewer_controller import RippleViewerController
@@ -48,7 +48,7 @@ def generate_synthetic_lfp(fs: float, duration: float) -> tuple[np.ndarray, np.n
 
 
 def run_ripple_analysis() -> None:
-    fs_raw = 32000.0
+    fs_raw = 32000
     duration_s = 10.0
 
     timestamps_raw, signal_raw = generate_synthetic_lfp(fs_raw, duration_s)
@@ -81,12 +81,14 @@ def run_ripple_analysis() -> None:
                 raw_volts={"channel_0": signal_raw},
                 ripples={"channel_0": events[0:2]},
                 fs=fs_raw,
+                viewer_params=RippleViewerParams(nfft=fs_raw // 8),
             ),
             RippleDataset(
                 label="another",
                 raw_volts={"channel_0": data_2khz},
                 ripples={"channel_0": [events[0], events[2]]},
                 fs=2000,
+                viewer_params=RippleViewerParams(nfft=2000 // 8),
             ),
         ]
     )
