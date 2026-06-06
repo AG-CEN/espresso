@@ -1,5 +1,6 @@
 import heapq
 from collections.abc import Iterator
+from dataclasses import field
 
 import reactivex.operators as ops
 from reactivex import Observable
@@ -7,7 +8,12 @@ from reactivex.subject import BehaviorSubject
 
 from espresso.models.ripple_dataset import RippleDataset
 from espresso.models.ripple_event import RippleEvent
-from espresso.ui.state.ripple_viewer_state import PlotId, PlotType, RippleViewerState
+from espresso.ui.state.ripple_viewer_state import (
+    PlotId,
+    PlotType,
+    RippleViewerParams,
+    RippleViewerState,
+)
 
 
 class RippleViewerController:
@@ -16,6 +22,7 @@ class RippleViewerController:
     def __init__(
         self,
         ripple_datasets: list[RippleDataset],
+        ripple_viewer_params: RippleViewerParams,
     ):
         if not ripple_datasets:
             raise ValueError("At least one RippleDataset must be provided")
@@ -33,6 +40,7 @@ class RippleViewerController:
                 for dataset in self.ripple_datasets
                 for plot_type in PlotType
             },
+            ripple_viewer_params=ripple_viewer_params,
         )
 
         self._state_subject = BehaviorSubject(value=initial_state)

@@ -2,10 +2,11 @@ import numpy as np
 from scipy.signal import decimate
 
 from espresso.hfo.ripple_detector import detect_ripples
-from espresso.models.ripple_dataset import RippleDataset, RippleViewerParams
+from espresso.models.ripple_dataset import RippleDataset
 from espresso.models.ripple_event import RippleEvent
 from espresso.ui.ripple_viewer import RippleViewer
 from espresso.ui.state.ripple_viewer_controller import RippleViewerController
+from espresso.ui.state.ripple_viewer_state import RippleViewerParams
 
 
 def inject_ripple(
@@ -74,23 +75,26 @@ def run_ripple_analysis() -> None:
     for peak in events[:5]:
         print(peak)
 
+    ripple_datasets = [
+        RippleDataset(
+            label="raw",
+            raw_volts={"channel_0": signal_raw},
+            ripples={"channel_0": events[0:2]},
+            fs=fs_raw,
+        ),
+        RippleDataset(
+            label="another",
+            raw_volts={"channel_0": data_2khz},
+            ripples={"channel_0": [events[0], events[2]]},
+            fs=2000,
+        ),
+    ]
+    
+    viewer_params = RippleViewerParams()
+
     viewer_controller = RippleViewerController(
-        ripple_datasets=[
-            RippleDataset(
-                label="raw",
-                raw_volts={"channel_0": signal_raw},
-                ripples={"channel_0": events[0:2]},
-                fs=fs_raw,
-                viewer_params=RippleViewerParams(nfft=fs_raw // 8),
-            ),
-            RippleDataset(
-                label="another",
-                raw_volts={"channel_0": data_2khz},
-                ripples={"channel_0": [events[0], events[2]]},
-                fs=2000,
-                viewer_params=RippleViewerParams(nfft=2000 // 8),
-            ),
-        ]
+        ripple_datasets=ripple_datasets,
+        ripple_viewer_params=viewer_params,
     )
     viewer = RippleViewer(
         controller=viewer_controller,

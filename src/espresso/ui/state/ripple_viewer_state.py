@@ -20,6 +20,29 @@ class PlotType(str, Enum):
 PlotId: TypeAlias = tuple[str, PlotType]
 
 
+class RippleViewerParams:
+    spect_low: int = 50
+    """Lower frequency limit (Hz) to display in the spectrogram."""
+
+    spect_high: int = 250
+    """Upper frequency limit (Hz) to display in the spectrogram."""
+
+    nfft_sec: float = 0.125
+    """Duration of the FFT window in seconds. Automatically scaled by sampling rate (fs) to determine window sample size."""
+
+    overlap_ratio: float = 0.95
+    """Fractional ratio (0.0 to 1.0) of window overlap. Determines what percentage of the calculated 'nfft' window samples overlap with the next frame."""
+
+    z_min: float = -0.5
+    """Minimum standardized power intensity threshold for color mapping baseline."""
+
+    z_max: float = 2.0
+    """Maximum standardized power intensity threshold to cap color saturation."""
+
+    z_interp: int = 1024
+    """Number of interpolation bins used to smooth the color map rendering gradient."""
+
+
 @dataclass(frozen=True)
 class RippleViewerState:
     """Immutable state snapshot representing the exact UI configuration."""
@@ -31,7 +54,10 @@ class RippleViewerState:
     """All of the ripples across all of the datasets for the selected channel"""
 
     plot_visibility: dict[PlotId, bool]
-    """Visibility map of plots"""
+    """Visibility map of plots."""
+
+    ripple_viewer_params: RippleViewerParams
+    """Viewer parameters."""
 
     current_ripple_index: int = 0
     """The index of the currently focused ripple event."""

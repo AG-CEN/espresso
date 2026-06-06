@@ -49,6 +49,12 @@ class PlotsView(pg.GraphicsLayoutWidget):
             self._set_plot_defaults(plot=plot)
             plot.addItem(line)
             self.v_lines.append(line)
+            plot.getViewBox().setLimits(
+                xMin=0,
+                xMax=len(self.ripple_dataset.raw_volts[initial_state.channel_name])
+                / self.ripple_dataset.fs,
+                maxXRange=initial_state.view_window_sec,
+            )
 
         self.p_raw.sigRangeChanged.connect(
             lambda vb, range_list: self.build(ripple_viewer_state=self._last_state)
@@ -56,20 +62,20 @@ class PlotsView(pg.GraphicsLayoutWidget):
 
     def _create_raw_plot(self):
         self.p_raw = self.ci.addPlot(row=0, col=0)
-        self.p_raw.setLabel("left", "Raw", units="V")
+        self.p_raw.setLabel("left", "Raw", units="μV")
         self.c_raw = self.p_raw.plot(pen=pg.mkPen((33, 33, 33), width=1))
         self.c_raw_hi = self.p_raw.plot(pen=pg.mkPen("r", width=2.0))
 
     def _create_filtered_plot(self):
 
         self.p_filt = self.ci.addPlot(row=1, col=0)
-        self.p_filt.setLabel("left", "Filtered", units="V")
+        self.p_filt.setLabel("left", "Filtered", units="μV")
         self.c_filt = self.p_filt.plot(pen=pg.mkPen((33, 33, 33), width=1))
         self.c_filt_hi = self.p_filt.plot(pen=pg.mkPen("r", width=2.0))
 
     def _create_envelope_plot(self):
         self.p_env = self.ci.addPlot(row=2, col=0)
-        self.p_env.setLabel("left", "Envelope", units="V")
+        self.p_env.setLabel("left", "Envelope", units="μV")
         self.c_env = self.p_env.plot(pen=pg.mkPen((33, 33, 33), width=1))
         self.c_env_hi = self.p_env.plot(pen=pg.mkPen("r", width=2.0))
 
@@ -108,10 +114,6 @@ class PlotsView(pg.GraphicsLayoutWidget):
         self.p_filt.getViewBox().setXLink(reference_plot)
         self.p_env.getViewBox().setXLink(reference_plot)
         self.p_spec.getViewBox().setXLink(reference_plot)
-
-    def update_ripple_marker(self, ripple_peak_sec: float) -> None:
-        for line in self.v_lines:
-            line.setPos(ripple_peak_sec)
 
     def _focus_on_ripple(self, ripple: RippleEvent):
         for line in self.v_lines:
@@ -159,41 +161,61 @@ class PlotsView(pg.GraphicsLayoutWidget):
 
     def build(self, ripple_viewer_state: RippleViewerState) -> None:
         """Render plots for a dataset."""
-
         self._handle_state(new_state=ripple_viewer_state)
         self._last_state = ripple_viewer_state
 
         dataset = self.ripple_dataset
-
         raw_signal = dataset.raw_volts[ripple_viewer_state.channel_name]
         fs = dataset.fs
         n_samples = len(raw_signal)
 
-        for plot in self.all_plots:
-            plot.getViewBox().setLimits(
-                xMin=0,
-                xMax=n_samples / fs,
-                maxXRange=ripple_viewer_state.view_window_sec,
-            )
-
+        # Get current sample boundaries
         vr = self.p_raw.getViewBox().viewRange()
         s_sec, e_sec = vr[0][0], vr[0][1]
-
         s = int(max(0, s_sec * fs))
         e = int(min(n_samples, e_sec * fs))
 
         if (e - s) < 50:
             return
 
+        # Compute signal chunks
         x = np.linspace(s / dataset.fs, (e - 1) / dataset.fs, e - s)
-        chunk = dataset.raw_volts[ripple_viewer_state.channel_name][s:e] / 1e6
+        chunk = dataset.raw_volts[ripple_viewer_state.channel_name][s:e]
         f_chunk = sosfiltfilt(self.sos, chunk)
         env_chunk = np.abs(hilbert(f_chunk))
 
-        # 1. Create Masks
-        # Default everything to visible (Black)
+        self._render_plots(
+            ripple_viewer_state=ripple_viewer_state,
+            s=s,
+            e=e,
+            x=x,
+            chunk=chunk,
+            f_chunk=f_chunk,
+            env_chunk=env_chunk,
+        )
+
+        self._update_spectrogram(
+            chunk=chunk,
+            s_sec=s_sec,
+            e_sec=e_sec,
+            ripple_viewer_state=ripple_viewer_state,
+        )
+
+    def _render_plots(
+        self,
+        ripple_viewer_state: RippleViewerState,
+        s: int,
+        e: int,
+        x: np.ndarray,
+        chunk: np.ndarray,
+        f_chunk: np.ndarray,
+        env_chunk: np.ndarray,
+    ) -> None:
+        """Calculate ripple masks, split baselines from highlights, and push to plots."""
+        dataset = self.ripple_dataset
+
+        # Create Masks
         black_mask = np.ones(chunk.shape, dtype=bool)
-        # Default highlights to empty (Red)
         hi_raw = np.full(chunk.shape, np.nan)
         hi_filt = np.full(chunk.shape, np.nan)
         hi_env = np.full(chunk.shape, np.nan)
@@ -207,27 +229,19 @@ class PlotsView(pg.GraphicsLayoutWidget):
         ]
 
         for ripple in in_view:
-            # Convert seconds to samples and clip to the current view [s, e]
             r_s = int(max(s, ripple.start_sec * dataset.fs)) - s
             r_e = int(min(e, ripple.end_sec * dataset.fs)) - s
 
             if r_e > r_s:
-                # 1. Expand red indices by 1 to overlap with black line
-                # Clamp to 0 and len(chunk) to avoid index errors
                 r_s_ext = max(0, r_s - 1)
                 r_e_ext = min(len(chunk), r_e + 1)
 
-                # 2. Transfer data to Red arrays using the EXTENDED range
                 hi_raw[r_s_ext:r_e_ext] = chunk[r_s_ext:r_e_ext]
                 hi_filt[r_s_ext:r_e_ext] = f_chunk[r_s_ext:r_e_ext]
                 hi_env[r_s_ext:r_e_ext] = env_chunk[r_s_ext:r_e_ext]
-
-                # 3. Mask the Black line using the ORIGINAL range
-                # This keeps the black line's boundary sample visible
                 black_mask[r_s:r_e] = False
 
-        # 2. Apply the "Cut" to Black signals
-        # We create a copy to avoid modifying the original data buffers
+        # Apply the "Cut" to Black signals
         clean_raw = chunk.copy().astype(float)
         clean_filt = f_chunk.copy().astype(float)
         clean_env = env_chunk.copy().astype(float)
@@ -236,7 +250,7 @@ class PlotsView(pg.GraphicsLayoutWidget):
         clean_filt[~black_mask] = np.nan
         clean_env[~black_mask] = np.nan
 
-        # 3. Render
+        # Render
         self.c_raw.setData(x, clean_raw)
         self.c_filt.setData(x, clean_filt)
         self.c_env.setData(x, clean_env)
@@ -245,18 +259,26 @@ class PlotsView(pg.GraphicsLayoutWidget):
         self.c_filt_hi.setData(x, hi_filt)
         self.c_env_hi.setData(x, hi_env)
 
-        # 2. Update Spectrogram
+    def _update_spectrogram(
+        self,
+        chunk: np.ndarray,
+        s_sec: float,
+        e_sec: float,
+        ripple_viewer_state: RippleViewerState,
+    ) -> None:
+        """Compute STFT transforms, apply normalization steps, and map geometry."""
+        dataset = self.ripple_dataset
+        viewer_params = ripple_viewer_state.ripple_viewer_params
 
-        nfft: int = max(1, min(dataset.viewer_params.nfft, len(chunk)))
-        n_overlap = int(nfft * 0.9)
+        nfft: int = max(1, min(int(dataset.fs * viewer_params.nfft_sec), len(chunk)))
+        n_overlap = int(nfft * viewer_params.overlap_ratio)
         n_overlap: int = min(n_overlap, nfft - 1)
+
         f, t, sxx = spectrogram(
             chunk, fs=dataset.fs, nperseg=nfft, noverlap=n_overlap, window="hann"
         )
 
-        mask = (f >= dataset.viewer_params.spect_low) & (
-            f <= dataset.viewer_params.spect_high
-        )
+        mask = (f >= viewer_params.spect_low) & (f <= viewer_params.spect_high)
 
         if np.any(mask):
             s_log = 10 * np.log10(sxx[mask, :] + 1e-12)
@@ -264,9 +286,7 @@ class PlotsView(pg.GraphicsLayoutWidget):
                 np.std(s_log, axis=1, keepdims=True) + 1e-6
             )
 
-            self.img.setImage(
-                s_z.T, levels=[dataset.viewer_params.z_min, dataset.viewer_params.z_max]
-            )
+            self.img.setImage(s_z.T, levels=[viewer_params.z_min, viewer_params.z_max])
 
             self.setRenderHint(QPainter.RenderHint.Antialiasing, True)
             self.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform, True)
@@ -274,16 +294,13 @@ class PlotsView(pg.GraphicsLayoutWidget):
             self.img.setRect(
                 pg.QtCore.QRectF(
                     float(s_sec),
-                    float(dataset.viewer_params.spect_low),
+                    float(viewer_params.spect_low),
                     float(e_sec - s_sec),
-                    float(
-                        dataset.viewer_params.spect_high
-                        - dataset.viewer_params.spect_low
-                    ),
+                    float(viewer_params.spect_high - viewer_params.spect_low),
                 )
             )
             self.p_spec.getViewBox().setYRange(
-                dataset.viewer_params.spect_low,
-                dataset.viewer_params.spect_high,
+                viewer_params.spect_low,
+                viewer_params.spect_high,
                 padding=0,
             )
