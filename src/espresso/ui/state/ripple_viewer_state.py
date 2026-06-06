@@ -28,10 +28,18 @@ class RippleViewerParams:
     """Upper frequency limit (Hz) to display in the spectrogram."""
 
     nfft_sec: float = 0.125
-    """Duration of the FFT window in seconds. Automatically scaled by sampling rate (fs) to determine window sample size."""
+    (
+        """Duration of the FFT window in seconds. """
+        """Automatically scaled by sampling rate (fs) """
+        """to determine window sample size."""
+    )
 
     overlap_ratio: float = 0.95
-    """Fractional ratio (0.0 to 1.0) of window overlap. Determines what percentage of the calculated 'nfft' window samples overlap with the next frame."""
+    (
+        """Fractional ratio (0.0 to 1.0) of window overlap. """
+        """Determines what percentage of the calculated 'nfft' window """
+        """samples overlap with the next frame."""
+    )
 
     z_min: float = -0.5
     """Minimum standardized power intensity threshold for color mapping baseline."""
