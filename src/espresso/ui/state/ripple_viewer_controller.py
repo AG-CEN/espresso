@@ -1,6 +1,5 @@
 import heapq
 from collections.abc import Iterator
-from dataclasses import field
 
 import reactivex.operators as ops
 from reactivex import Observable
