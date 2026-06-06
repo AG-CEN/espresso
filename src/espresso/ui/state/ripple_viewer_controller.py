@@ -59,7 +59,7 @@ class RippleViewerController:
 
     @property
     def channels(self) -> list[str]:
-        return list(next(iter(self.ripple_datasets)).raw_volts.keys())
+        return list(next(iter(self.ripple_datasets)).raw_microvolts.keys())
 
     def _calculate_current_ripples(self, channel_name: str) -> list[RippleEvent]:
         """Merge sorted channel data and remove duplicates within 50ms."""

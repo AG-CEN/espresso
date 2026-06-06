@@ -8,6 +8,6 @@ from espresso.models.ripple_event import RippleEvent
 @dataclass
 class RippleDataset:
     label: str
-    raw_volts: dict[str, np.ndarray]
+    raw_microvolts: dict[str, np.ndarray]
     ripples: dict[str, list[RippleEvent]]
     fs: float

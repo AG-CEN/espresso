@@ -51,7 +51,7 @@ class PlotsView(pg.GraphicsLayoutWidget):
             self.v_lines.append(line)
             plot.getViewBox().setLimits(
                 xMin=0,
-                xMax=len(self.ripple_dataset.raw_volts[initial_state.channel_name])
+                xMax=len(self.ripple_dataset.raw_microvolts[initial_state.channel_name])
                 / self.ripple_dataset.fs,
                 maxXRange=initial_state.view_window_sec,
             )
@@ -107,7 +107,11 @@ class PlotsView(pg.GraphicsLayoutWidget):
         plot.getViewBox().setMouseEnabled(y=False)
         grid_pen = pg.mkPen(color=grid_color, width=1)
         plot.getAxis("bottom").setPen(grid_pen)
-        plot.getAxis("left").setPen(grid_pen)
+        plot.getAxis("left")
+        left_axis = plot.getAxis("left")
+        left_axis.setPen(grid_pen)
+        left_axis.setWidth(60)
+        left_axis.setStyle(autoExpandTextSpace=False)
 
     def set_x_link(self, reference_plot: pg.PlotItem):
         self.p_raw.getViewBox().setXLink(reference_plot)
@@ -165,29 +169,46 @@ class PlotsView(pg.GraphicsLayoutWidget):
         self._last_state = ripple_viewer_state
 
         dataset = self.ripple_dataset
-        raw_signal = dataset.raw_volts[ripple_viewer_state.channel_name]
+        raw_microvolts = dataset.raw_microvolts[ripple_viewer_state.channel_name]
         fs = dataset.fs
-        n_samples = len(raw_signal)
+        n_samples = len(raw_microvolts)
 
         # Get current sample boundaries
         vr = self.p_raw.getViewBox().viewRange()
         s_sec, e_sec = vr[0][0], vr[0][1]
-        s = int(max(0, s_sec * fs))
-        e = int(min(n_samples, e_sec * fs))
 
-        if (e - s) < 50:
+        # 1. Calculate the exact indices needed for the visible screen layout
+        s_visible = int(max(0, s_sec * fs))
+        e_visible = int(min(n_samples, e_sec * fs))
+
+        if (e_visible - s_visible) < 50:
             return
 
-        # Compute signal chunks
-        x = np.linspace(s / dataset.fs, (e - 1) / dataset.fs, e - s)
-        chunk = dataset.raw_volts[ripple_viewer_state.channel_name][s:e]
-        f_chunk = sosfiltfilt(self.sos, chunk)
-        env_chunk = np.abs(hilbert(f_chunk))
+        # 2. Expand indices by +/- 1 second to pull a wider computation context
+        pad_samples = int(fs * 1.0)
+        s_wide = max(0, s_visible - pad_samples)
+        e_wide = min(n_samples, e_visible + pad_samples)
 
+        # 3. Pull the wider data slice and execute filters
+        chunk_wide = raw_microvolts[s_wide:e_wide]
+        f_chunk_wide = sosfiltfilt(self.sos, chunk_wide)
+        env_chunk_wide = np.abs(hilbert(f_chunk_wide))
+
+        # 4. Calculate relative crop offsets to discard the filter edge transients
+        trim_start = s_visible - s_wide
+        trim_end = trim_start + (e_visible - s_visible)
+
+        # 5. Extract the clean, artifact-free visible ranges
+        chunk = chunk_wide[trim_start:trim_end]
+        f_chunk = f_chunk_wide[trim_start:trim_end]
+        env_chunk = env_chunk_wide[trim_start:trim_end]
+        x = np.linspace(s_visible / fs, (e_visible - 1) / fs, e_visible - s_visible)
+
+        # 6. Pass clean arrays to render pipelines
         self._render_plots(
             ripple_viewer_state=ripple_viewer_state,
-            s=s,
-            e=e,
+            s=s_visible,
+            e=e_visible,
             x=x,
             chunk=chunk,
             f_chunk=f_chunk,
@@ -211,7 +232,10 @@ class PlotsView(pg.GraphicsLayoutWidget):
         f_chunk: np.ndarray,
         env_chunk: np.ndarray,
     ) -> None:
-        """Calculate ripple masks, split baselines from highlights, and push to plots."""
+        (
+            """Calculate ripple masks, split baselines from highlights, """
+            """and push to plots."""
+        )
         dataset = self.ripple_dataset
 
         # Create Masks

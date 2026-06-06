@@ -1,4 +1,4 @@
-import numpy as np
+from fake_ripple_generator import generate_synthetic_lfp
 from scipy.signal import decimate
 
 from espresso.hfo.ripple_detector import detect_ripples
@@ -9,50 +9,11 @@ from espresso.ui.state.ripple_viewer_controller import RippleViewerController
 from espresso.ui.state.ripple_viewer_state import RippleViewerParams
 
 
-def inject_ripple(
-    signal: np.ndarray,
-    fs: float,
-    start_time: float,
-    duration: float = 0.2,
-    frequency: float = 200.0,
-    amplitude: float = 4.0,
-) -> None:
-    start_idx = int(start_time * fs)
-    end_idx = start_idx + int(duration * fs)
-    total_samples = end_idx - start_idx
-
-    t_burst = np.linspace(0, duration, total_samples)
-    ripple_burst = (
-        np.sin(2 * np.pi * frequency * t_burst) * np.hanning(total_samples) * amplitude
-    )
-    signal[start_idx:end_idx] += ripple_burst
-
-
-def generate_synthetic_lfp(fs: float, duration: float) -> tuple[np.ndarray, np.ndarray]:
-    total_samples = int(fs * duration)
-    time_axis = np.linspace(0, duration, total_samples)
-
-    noise = np.random.normal(0, 0.1, total_samples)
-    theta_oscillation = np.sin(2 * np.pi * 8 * time_axis) * 0.5
-    signal = noise + theta_oscillation
-
-    ripple_protocols = [
-        {"start_time": 0.6, "frequency": 180.0, "amplitude": 4.0},
-        {"start_time": 1.5, "frequency": 200.0, "amplitude": 3.5},
-        {"start_time": 7.1, "frequency": 220.0, "amplitude": 5.0},
-    ]
-
-    for protocol in ripple_protocols:
-        inject_ripple(signal=signal, fs=fs, **protocol)
-
-    return time_axis, signal
-
-
 def run_ripple_analysis() -> None:
     fs_raw = 32000
-    duration_s = 10.0
+    duration_s = 500.0
 
-    timestamps_raw, signal_raw = generate_synthetic_lfp(fs_raw, duration_s)
+    timestamps_raw, signal_raw, ripples = generate_synthetic_lfp(fs_raw, duration_s, 20)
 
     data_8khz = decimate(signal_raw, q=4, ftype="iir", zero_phase=True)
     data_2khz = decimate(data_8khz, q=4, ftype="iir", zero_phase=True)
@@ -63,33 +24,39 @@ def run_ripple_analysis() -> None:
     timestamps_ds = timestamps_ds[:min_len]
     data_2khz = data_2khz[:min_len]
 
-    events: list[RippleEvent] = detect_ripples(
+    events1: list[RippleEvent] = detect_ripples(
         time=timestamps_ds,
         signals=data_2khz,
-        threshold_dev=[3, 6],
+        threshold_dev=[3, 100],
+    )
+
+    events2: list[RippleEvent] = detect_ripples(
+        time=timestamps_ds,
+        signals=data_2khz,
+        threshold_dev=[1.5, 8],
     )
 
     duration_m = duration_s // 60
     print(f"File Duration: {duration_m:.0f}m {duration_s % 60:.2f}s")
     print("Detected Ripple Peaks:")
-    for peak in events[:5]:
-        print(peak)
+    for peak in events1[:5]:
+        print(f"{peak}\n")
 
     ripple_datasets = [
         RippleDataset(
             label="raw",
-            raw_volts={"channel_0": signal_raw},
-            ripples={"channel_0": events[0:2]},
+            raw_microvolts={"channel_0": signal_raw},
+            ripples={"channel_0": events1},
             fs=fs_raw,
         ),
         RippleDataset(
             label="another",
-            raw_volts={"channel_0": data_2khz},
-            ripples={"channel_0": [events[0], events[2]]},
+            raw_microvolts={"channel_0": data_2khz},
+            ripples={"channel_0": events2},
             fs=2000,
         ),
     ]
-    
+
     viewer_params = RippleViewerParams()
 
     viewer_controller = RippleViewerController(
