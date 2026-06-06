@@ -37,7 +37,7 @@ class LeftPanel(QWidget):
         self.on_plot_visibility_toggled = on_plot_visibility_toggled
 
         self.is_expanded = True
-
+        self.setMaximumWidth(30)
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
 
@@ -65,7 +65,7 @@ class LeftPanel(QWidget):
         for ripple_dataset in self.ripple_datasets:
             for plot_type in plot_types:
                 item = QListWidgetItem(
-                    f"{ripple_dataset.label} {plot_type.name.capitalize()}"
+                    # f"{ripple_dataset.label} {plot_type.name.capitalize()}"
                 )
                 item.setFlags(item.flags() | Qt.ItemFlag.ItemIsUserCheckable)
                 item.setCheckState(Qt.CheckState.Checked)
