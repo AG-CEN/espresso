@@ -79,9 +79,9 @@ class RippleViewerController:
     def change_channel(self, channel_name: str) -> None:
         """Change current active viewing channel."""
         if channel_name in self.channels:
-            self._state = self._state.copy_with(
-                current_channel=channel_name,
-                current_ripple_idx=0,
+            self._state = self.state.copy_with(
+                channel_name=channel_name,
+                current_ripple_index=0,
                 ripples=self._calculate_current_ripples(channel_name=channel_name),
             )
 
@@ -102,7 +102,7 @@ class RippleViewerController:
         ripples = self._state.ripples
         current_index = self._state.current_ripple_index
         if ripples and current_index < len(ripples) - 1:
-            self._state = self._state.copy_with(
+            self._state = self.state.copy_with(
                 current_ripple_index=current_index + 1,
             )
 
@@ -111,7 +111,7 @@ class RippleViewerController:
         ripples = self._state.ripples
         current_index = self._state.current_ripple_index
         if ripples and current_index > 0:
-            self._state = self._state.copy_with(
+            self._state = self.state.copy_with(
                 current_ripple_index=current_index - 1,
             )
 
@@ -120,11 +120,11 @@ class RippleViewerController:
         plot_id: PlotId,
         new_value: bool,
     ) -> None:
-        self._state = self._state.copy_with(
+        self._state = self.state.copy_with(
             plot_visibility={**self._state.plot_visibility, plot_id: new_value}
         )
 
     def toggle_ripple_highlight(self) -> None:
         """Toggle between zoomed-in (0.25s) and panoramic (2.0s) view windows."""
         new_V = 0.25 if self._state.view_window_sec >= 0.5 else 2.0
-        self._state = self._state.copy_with(view_window_sec=new_V)
+        self._state = self.state.copy_with(view_window_sec=new_V)

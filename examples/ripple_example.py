@@ -45,14 +45,14 @@ def run_ripple_analysis() -> None:
     ripple_datasets = [
         RippleDataset(
             label="raw",
-            raw_microvolts={"channel_0": signal_raw},
-            ripples={"channel_0": events1},
+            raw_microvolts={"channel_0": signal_raw, "channel_1": signal_raw},
+            ripples={"channel_0": events1, "channel_1": events1},
             fs=fs_raw,
         ),
         RippleDataset(
             label="another",
-            raw_microvolts={"channel_0": data_2khz},
-            ripples={"channel_0": events2},
+            raw_microvolts={"channel_0": data_2khz, "channel_1": data_2khz},
+            ripples={"channel_0": events2, "channel_1": events2},
             fs=2000,
         ),
     ]

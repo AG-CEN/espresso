@@ -80,7 +80,6 @@ class RippleViewerState:
     def copy_with(self, **changes: Any) -> Self:
         """
         Returns a new immutable instance with the specified properties updated.
-        Mirrors Dart's copyWith pattern natively.
         """
         if "plot_visibility" in changes:
             changes["plot_visibility"] = changes["plot_visibility"].copy()
