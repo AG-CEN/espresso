@@ -28,6 +28,7 @@ languageSettings:
       - /from .* import .*/g
       - /import .*/g
 words:
+  - bandpass
   - colorbar
   - filt
   - ftype

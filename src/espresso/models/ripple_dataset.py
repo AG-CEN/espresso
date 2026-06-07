@@ -11,3 +11,4 @@ class RippleDataset:
     raw_microvolts: dict[str, np.ndarray]
     ripples: dict[str, list[RippleEvent]]
     fs: float
+    bandpass_filter: tuple[int, int]

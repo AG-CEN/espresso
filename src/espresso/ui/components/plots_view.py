@@ -24,7 +24,11 @@ class PlotsView(pg.GraphicsLayoutWidget):
     def _init_ui(self, initial_state: RippleViewerState):
         self._last_state = initial_state
         self.sos = butter(
-            4, [80, 150], btype="band", fs=self.ripple_dataset.fs, output="sos"
+            4,
+            self.ripple_dataset.bandpass_filter,
+            btype="band",
+            fs=self.ripple_dataset.fs,
+            output="sos",
         )
         pg.setConfigOptions(useOpenGL=True, antialias=True)
 
@@ -119,11 +123,15 @@ class PlotsView(pg.GraphicsLayoutWidget):
         self.p_env.getViewBox().setXLink(reference_plot)
         self.p_spec.getViewBox().setXLink(reference_plot)
 
-    def _focus_on_ripple(self, ripple: RippleEvent):
+    def _focus_on_ripple(self, ripple: tuple[str, RippleEvent]):
         for line in self.v_lines:
-            line.setPos(ripple.peak_sec)
+            if ripple[0] == self.ripple_dataset.label:
+                (line.setPen("#23f", width=4, style=Qt.PenStyle.DashLine),)
+            else:
+                (line.setPen("#111a", width=2, style=Qt.PenStyle.DashLine),)
+            line.setPos(ripple[1].peak_sec)
 
-        center = ripple.peak_sec
+        center = ripple[1].peak_sec
         half_window = self._last_state.view_window_sec / 2
 
         self.p_raw.getViewBox().setXRange(

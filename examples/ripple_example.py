@@ -48,12 +48,14 @@ def run_ripple_analysis() -> None:
             raw_microvolts={"channel_0": signal_raw, "channel_1": signal_raw},
             ripples={"channel_0": events1, "channel_1": events1},
             fs=fs_raw,
+            bandpass_filter=(60, 190),
         ),
         RippleDataset(
             label="another",
             raw_microvolts={"channel_0": data_2khz, "channel_1": data_2khz},
             ripples={"channel_0": events2, "channel_1": events2},
             fs=2000,
+            bandpass_filter=(10, 390),
         ),
     ]
 

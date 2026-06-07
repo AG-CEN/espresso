@@ -58,8 +58,12 @@ class RippleViewerState:
     channel_name: str
     """The name of the currently selected signal channel (e.g., 'Ch1')."""
 
-    ripples: list[RippleEvent]
-    """All of the ripples across all of the datasets for the selected channel"""
+    ripples: list[tuple[str, RippleEvent]]
+    (
+        """All of the ripples across all of the datasets for the selected channel. """
+        """First element of the tuple is the label of the dataset they belong to. """
+        """This label is used for UI purposes."""
+    )
 
     plot_visibility: dict[PlotId, bool]
     """Visibility map of plots."""
@@ -74,7 +78,7 @@ class RippleViewerState:
     """The temporal width of the chart viewport in seconds (typically 2.0s or 0.25s)."""
 
     @property
-    def current_ripple(self) -> RippleEvent:
+    def current_ripple(self) -> tuple[str, RippleEvent]:
         return self.ripples[self.current_ripple_index]
 
     def copy_with(self, **changes: Any) -> Self:

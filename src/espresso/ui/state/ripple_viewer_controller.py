@@ -1,6 +1,3 @@
-import heapq
-from collections.abc import Iterator
-
 import reactivex.operators as ops
 from reactivex import Observable
 from reactivex.subject import BehaviorSubject
@@ -60,20 +57,18 @@ class RippleViewerController:
     def channels(self) -> list[str]:
         return list(next(iter(self.ripple_datasets)).raw_microvolts.keys())
 
-    def _calculate_current_ripples(self, channel_name: str) -> list[RippleEvent]:
-        """Merge sorted channel data and remove duplicates within 50ms."""
-        streams: list[list[RippleEvent]] = [
-            dataset.ripples[channel_name] for dataset in self.ripple_datasets
+    def _calculate_current_ripples(
+        self, channel_name: str
+    ) -> list[tuple[str, RippleEvent]]:
+        flattened_ripples = [
+            (dataset.label, ripple)
+            for dataset in self.ripple_datasets
+            for ripple in dataset.ripples[channel_name]
         ]
-        sorted_ripples: Iterator[RippleEvent] = heapq.merge(
-            *streams, key=lambda r: r.peak_sec
-        )
 
-        filtered: list[RippleEvent] = []
-        for ripple in sorted_ripples:
-            if not filtered or (ripple.peak_sec - filtered[-1].peak_sec >= 0.05):
-                filtered.append(ripple)
-        return filtered
+        sorted_ripples = sorted(flattened_ripples, key=lambda r: r[1].peak_sec)
+
+        return sorted_ripples
 
     def change_channel(self, channel_name: str) -> None:
         """Change current active viewing channel."""
