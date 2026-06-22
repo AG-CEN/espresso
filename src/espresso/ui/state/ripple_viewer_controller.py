@@ -63,7 +63,7 @@ class RippleViewerController:
         flattened_ripples = [
             (dataset.label, ripple)
             for dataset in self.ripple_datasets
-            for ripple in dataset.ripples[channel_name]
+             for ripple in dataset.ripples.get(channel_name, [])
         ]
 
         sorted_ripples = sorted(flattened_ripples, key=lambda r: r[1].peak_sec)
