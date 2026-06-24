@@ -255,7 +255,9 @@ class PlotsView(pg.GraphicsLayoutWidget):
         # Find ripples in view
         in_view = [
             ripple
-            for ripple in dataset.ripples[ripple_viewer_state.channel_name]
+            for ripple in getattr(dataset, "ripples", {}).get(
+                ripple_viewer_state.channel_name, []
+            )
             if (ripple.end_sec * dataset.fs >= s)
             and (ripple.start_sec * dataset.fs <= e)
         ]
