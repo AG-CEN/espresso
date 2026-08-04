@@ -266,7 +266,7 @@ def segment_scale(segments, value, reference=0.5):
         value = np.concatenate([-reference * value, (1 - reference) * value], axis=1)
         segments = segments + value
     else:
-        raise ValueError('Invalid shape of scaling value')
+        raise ValueError("Invalid shape of scaling value")
 
     return segments
 
@@ -315,7 +315,7 @@ def segment_count(segments, x):
     tmp = np.concatenate(
         [np.vstack([segments[:, 0], np.zeros(n)]), np.vstack([x, np.ones(nx)])], axis=1
     )
-    tmp = tmp[:, tmp[0, :].argsort(kind='mergesort')]
+    tmp = tmp[:, tmp[0, :].argsort(kind="mergesort")]
     idx = tmp[1, :].nonzero()
     tmp_cs = np.cumsum(tmp[1, :], axis=0)
     seg_start = idx - tmp_cs[idx]
@@ -323,7 +323,7 @@ def segment_count(segments, x):
     tmp = np.concatenate(
         [np.vstack([segments[:, 1], np.zeros(n)]), np.vstack([x, np.ones(nx)])], axis=1
     )
-    tmp = tmp[:, tmp[0, :].argsort(kind='mergesort')]
+    tmp = tmp[:, tmp[0, :].argsort(kind="mergesort")]
     idx = tmp[1, :].nonzero()
     tmp_cs = np.cumsum(tmp[1, :], axis=0)
     seg_end = idx - tmp_cs[idx]
@@ -506,9 +506,9 @@ def segment_applyfcn(segments, x, *args, **kwargs):
 
     b, nn, b2 = segment_contains(segments, x)
 
-    separate = bool(kwargs.get('separate', False))
-    function = kwargs.get('function', len)
-    default = kwargs.get('default')
+    separate = bool(kwargs.get("separate", False))
+    function = kwargs.get("function", len)
+    default = kwargs.get("default")
 
     if len(args) == 0:
         if not separate:
@@ -609,7 +609,7 @@ class LinearKernelBase(KernelBase):
         bandwidth=None,
         covariance=None,
         correlation=None,
-        kerneltype='symmetrical',
+        kerneltype="symmetrical",
         **kwargs,
     ):
         KernelBase.__init__(self, **kwargs)
@@ -672,7 +672,7 @@ class LinearKernelBase(KernelBase):
 
     @kerneltype.setter
     def kerneltype(self, value):
-        if value not in ('symmetrical', 'multiplicative'):
+        if value not in ("symmetrical", "multiplicative"):
             raise TypeError
         self._kerneltype = value
 
@@ -807,7 +807,7 @@ class LinearKernelBase(KernelBase):
             grid = x[0]
             u = (grid**2) / np.asarray(covariance)
         else:
-            grid = np.meshgrid(*x, indexing='ij')
+            grid = np.meshgrid(*x, indexing="ij")
             grid = [g.ravel() for g in grid]
             grid = np.vstack(grid)
             u = np.sum(np.asarray(np.linalg.inv(covariance) * grid) * grid, axis=0)
@@ -841,9 +841,9 @@ class LinearKernelBase(KernelBase):
         if np.any(dx <= 0):
             raise TypeError
 
-        if self.kerneltype == 'multiplicative':
+        if self.kerneltype == "multiplicative":
             return self._multiplicative_kernel(dx)
-        elif self.kerneltype == 'symmetrical':
+        elif self.kerneltype == "symmetrical":
             return self._symmetrical_kernel(dx)
 
 
@@ -1165,18 +1165,18 @@ class Smoother:
     @normalize.setter
     def normalize(self, value):
         if isinstance(value, str):
-            if value not in ('sum', 'max', 'none'):
+            if value not in ("sum", "max", "none"):
                 raise ValueError("Only 'sum', 'max' and 'none' are supported.")
             else:
                 self._normalize = value
         elif value is None:
-            self._normalize = 'none'
+            self._normalize = "none"
         elif bool(value):
-            self._normalize = 'sum'
+            self._normalize = "sum"
         elif not bool(value):
-            self._normalize = 'none'
+            self._normalize = "none"
         else:
-            raise ValueError('Invalid value.')
+            raise ValueError("Invalid value.")
 
     def __call__(self, data, delta=1):
         """Smooth data.
@@ -1196,9 +1196,9 @@ class Smoother:
         """
         k = self._kernel(delta).copy()
 
-        if self._normalize == 'sum':
+        if self._normalize == "sum":
             k = k / np.nansum(k)
-        elif self._normalize == 'max':
+        elif self._normalize == "max":
             k = k / np.nanmax(k)
 
         if self._nansaszero:
@@ -1211,13 +1211,13 @@ class Smoother:
         else:
             nan_data = None
 
-        data = scipy.signal.convolve(data, k, 'same')
+        data = scipy.signal.convolve(data, k, "same")
 
         if self._unbiased:
             n = np.ones(data.shape) / np.nansum(k)
             if nan_data is not None:
                 n[nan_data] = 0
-            n = scipy.signal.convolve(n, k, 'same')
+            n = scipy.signal.convolve(n, k, "same")
             if nan_data is not None:
                 n[nan_data] = np.nan
             data = data / n
@@ -1226,16 +1226,16 @@ class Smoother:
 
 
 _kernel_map = {
-    'none': NoKernel,
-    'gaussian': GaussianKernel,
-    'epanechnikov': EpanechnikovKernel,
-    'uniform': UniformKernel,
-    'triangular': TriangularKernel,
-    'vonmises': VonMisesKernel,
+    "none": NoKernel,
+    "gaussian": GaussianKernel,
+    "epanechnikov": EpanechnikovKernel,
+    "uniform": UniformKernel,
+    "triangular": TriangularKernel,
+    "vonmises": VonMisesKernel,
 }
 
 
-def smooth1d(data, axis=-1, kernel='gaussian', bandwidth=1.0, delta=1.0, **kwargs):
+def smooth1d(data, axis=-1, kernel="gaussian", bandwidth=1.0, delta=1.0, **kwargs):
     """Smooth array of 1D signals.
 
     Parameters
@@ -1273,7 +1273,7 @@ def smooth1d(data, axis=-1, kernel='gaussian', bandwidth=1.0, delta=1.0, **kwarg
     return data
 
 
-def smooth2d(data, axes=None, kernel='gaussian', bandwidth=1.0, delta=1.0, **kwargs):
+def smooth2d(data, axes=None, kernel="gaussian", bandwidth=1.0, delta=1.0, **kwargs):
     """Smooth array of 2D arrays.
 
     Parameters
@@ -1304,10 +1304,10 @@ def smooth2d(data, axes=None, kernel='gaussian', bandwidth=1.0, delta=1.0, **kwa
     bandwidth = np.array(bandwidth).ravel()
 
     if data.ndim < 2:
-        raise ValueError('Require at least 2 dimensions.')
+        raise ValueError("Require at least 2 dimensions.")
 
     if len(axes) != 2 or axes[0] == axes[-1]:
-        raise ValueError('Invalid axes')
+        raise ValueError("Invalid axes")
 
     if not isinstance(kernel, (list, tuple)):
         kernel = [
@@ -1315,11 +1315,11 @@ def smooth2d(data, axes=None, kernel='gaussian', bandwidth=1.0, delta=1.0, **kwa
         ]
 
     if len(kernel) < 1 or len(kernel) > 2:
-        raise ValueError('Specify at least and at most 2 kernels for the 2 dimensions.')
+        raise ValueError("Specify at least and at most 2 kernels for the 2 dimensions.")
 
     for k in kernel:
         if k not in list(_kernel_map.keys()):
-            raise ValueError('Unknown kernel')
+            raise ValueError("Unknown kernel")
 
     k = [
         NoKernel(),
@@ -1364,13 +1364,13 @@ def partition_vector(v, **kwargs):
     partitions
 
     """
-    kwargs['size'] = len(v)
+    kwargs["size"] = len(v)
     p = partitions(**kwargs)
     return (v[idx] for idx in p)
 
 
 def partitions(
-    size=None, partsize=None, nparts=None, method='block', keepremainder=True
+    size=None, partsize=None, nparts=None, method="block", keepremainder=True
 ):
     """Partition elements in multiple groups.
 
@@ -1427,19 +1427,19 @@ def partitions(
             nparts = np.int(np.floor(size / partsize))
         else:
             raise ValueError(
-                'Cannot keep remainder, but size is not divisible by partsize or nparts'
+                "Cannot keep remainder, but size is not divisible by partsize or nparts"
             )
         size = nparts * partsize
 
-    if method == 'block':
+    if method == "block":
         idx = np.floor(np.arange(size) / partsize)
-    elif method == 'random':
+    elif method == "random":
         idx = np.floor(np.arange(size) / partsize)
         np.random.shuffle(idx)
-    elif method == 'sequence':
+    elif method == "sequence":
         idx = np.remainder(np.arange(size), nparts)
     else:
-        raise TypeError('Method argument should be one of block, random, sequence')
+        raise TypeError("Method argument should be one of block, random, sequence")
 
     return (np.nonzero(idx == k)[0] for k in np.arange(nparts))
 
@@ -1649,7 +1649,7 @@ class Segment:
         eventid = np.concatenate((np.ones(len(on)), -np.ones(len(off))))
 
         isort = np.argsort(
-            events, kind='mergesort'
+            events, kind="mergesort"
         )  # mergesort keeps items with same key in same relative order
         events = events[isort]
         eventid = eventid[isort]
@@ -1736,11 +1736,11 @@ class Segment:
 
     def __repr__(self):
         """Return string representation of Segment object."""
-        return 'Segment(' + repr(self._data) + ')'
+        return "Segment(" + repr(self._data) + ")"
 
     def __str__(self):
         """Return string representation of Segment object data."""
-        return 'Segment(' + str(self._data) + ')'
+        return "Segment(" + str(self._data) + ")"
 
     @property
     def start(self):
@@ -1753,7 +1753,7 @@ class Segment:
         """Set segment start values."""
         # Should we re-order after changing start points?
         if np.any(self._data[:, 1] < value):
-            raise SegmentError('Segment start times should be <= stop times')
+            raise SegmentError("Segment start times should be <= stop times")
 
         self._data[:, 0] = value
 
@@ -1768,7 +1768,7 @@ class Segment:
         """Set segment stop values."""
         # TODO: check if values are not beyond start points
         if np.any(self._data[:, 0] > value):
-            raise SegmentError('Segment stop times should be >= start times')
+            raise SegmentError("Segment stop times should be >= start times")
 
         self._data[:, 1] = value
 
@@ -2163,7 +2163,7 @@ class Segment:
         if value.ndim == 1:
             value = value.reshape([len(value), 1])
         elif value.ndim != 0:
-            raise ValueError('Invalid shape of offset value')
+            raise ValueError("Invalid shape of offset value")
 
         self._data = self._data + value
         return self
@@ -2621,17 +2621,17 @@ def inrange(x, low=None, high=None, include_boundary=True):
 
 
 standard_frequency_bands = {
-    'slow': [0.1, 1.0],
-    'delta': [1.0, 4.0],
-    'theta': [6.0, 12.0],
-    'spindle': [7.0, 14.0],
-    'beta': [15.0, 30.0],
-    'gamma': [30.0, 140.0],
-    'gamma_low': [30.0, 50.0],
-    'gamma_high': [60.0, 140.0],
-    'ripple': [140.0, 225.0],
-    'mua': [300.0, 2000.0],
-    'hfo': [80.0, 500.0],
+    "slow": [0.1, 1.0],
+    "delta": [1.0, 4.0],
+    "theta": [6.0, 12.0],
+    "spindle": [7.0, 14.0],
+    "beta": [15.0, 30.0],
+    "gamma": [30.0, 140.0],
+    "gamma_low": [30.0, 50.0],
+    "gamma_high": [60.0, 140.0],
+    "ripple": [140.0, 225.0],
+    "mua": [300.0, 2000.0],
+    "hfo": [80.0, 500.0],
 }
 
 
@@ -2719,7 +2719,7 @@ def _localextrema_discrete(y):
 
 
 def localextrema(
-    y, x=None, method='discrete', kind='extrema', yrange=None, interp='linear'
+    y, x=None, method="discrete", kind="extrema", yrange=None, interp="linear"
 ):
     """Detects local extrema (maxima and/or minima) in 1D data array.
 
@@ -2756,19 +2756,19 @@ def localextrema(
     """
 
     # compute the local extrema
-    if method in ['gradient']:
+    if method in ["gradient"]:
         imax, imin = _localextrema_gradient(y)
-    elif method in ['discrete']:
+    elif method in ["discrete"]:
         imax, imin = _localextrema_discrete(y)
     else:
         raise LookupError
 
     # select the requested extrema
-    if kind in ('extrema', 'extremes'):
+    if kind in ("extrema", "extremes"):
         ii = np.sort(np.concatenate((imax, imin)))
-    elif kind in ('max', 'maximum', 'maxima'):
+    elif kind in ("max", "maximum", "maxima"):
         ii = imax
-    elif kind in ('min', 'minimum', 'minima'):
+    elif kind in ("min", "minimum", "minima"):
         ii = imin
     else:
         raise LookupError
@@ -2801,7 +2801,7 @@ def localmaxima(y, **kwargs):
 
     """
 
-    kwargs['kind'] = 'max'
+    kwargs["kind"] = "max"
     return localextrema(y, **kwargs)
 
 
@@ -2862,7 +2862,7 @@ def detect_mountains(y, x=None, low=None, high=None, segments=None):
     return s
 
 
-def construct_filter(band, fs=1.0, transition_width='25%', attenuation=60):
+def construct_filter(band, fs=1.0, transition_width="25%", attenuation=60):
     """Constructs FIR high/low/band-pass filter.
 
     Parameters
@@ -2900,10 +2900,10 @@ def construct_filter(band, fs=1.0, transition_width='25%', attenuation=60):
         # scalar -> low=pass filter
         band = np.array([0.0, float(band)], dtype=np.float64)
     elif len(band) != 2:
-        raise ValueError('Invalid frequency band')
+        raise ValueError("Invalid frequency band")
 
     if np.diff(band) == 0.0:
-        raise ValueError('Identical frequencies not allowed.')
+        raise ValueError("Identical frequencies not allowed.")
 
     lower, upper = np.logical_or.reduce((np.isnan(band), np.isinf(band), band <= 0.0))
 
@@ -2918,7 +2918,7 @@ def construct_filter(band, fs=1.0, transition_width='25%', attenuation=60):
         pass_zero = True
         band_width = band
     elif lower and upper:
-        raise ValueError('Invalid frequency band')
+        raise ValueError("Invalid frequency band")
     else:
         pass_zero = np.diff(band)[0] < 0
         if pass_zero:
@@ -2926,10 +2926,10 @@ def construct_filter(band, fs=1.0, transition_width='25%', attenuation=60):
         band_width = np.diff(band)[0]
 
     if fs <= 2 * np.max(band):
-        raise ValueError('Frequency band too high for given sampling frequency')
+        raise ValueError("Frequency band too high for given sampling frequency")
 
     if isinstance(transition_width, str):
-        transition_width = band_width * float(transition_width.rstrip('%')) / 100.0
+        transition_width = band_width * float(transition_width.rstrip("%")) / 100.0
 
     n, beta = sp.signal.kaiserord(attenuation, transition_width * 2.0 / fs)
 
@@ -2937,7 +2937,7 @@ def construct_filter(band, fs=1.0, transition_width='25%', attenuation=60):
     n = n + (n + 1) % 2
 
     h = sp.signal.firwin(
-        n, band, window=('kaiser', beta), pass_zero=bool(pass_zero), scale=False, fs=fs
+        n, band, window=("kaiser", beta), pass_zero=bool(pass_zero), scale=False, fs=fs
     )
 
     return h
@@ -3026,8 +3026,8 @@ def compute_envelope(
         smooth_options = {}
     if not isfiltered:
         if freq_band is None:
-            raise ValueError('Please specify frequency band')
-        filter_arg = dict(transition_width='25%', attenuation=60)
+            raise ValueError("Please specify frequency band")
+        filter_arg = dict(transition_width="25%", attenuation=60)
         filter_arg.update(filter_options)
         envelope = apply_filter(signals, freq_band, axis=axis, fs=fs, **filter_arg)
     else:
@@ -3040,11 +3040,11 @@ def compute_envelope(
         ]
 
     if len(envelope) == 0:
-        raise ValueError('No signal provided.')
+        raise ValueError("No signal provided.")
 
     # check that all arrays in the list have the same size along axis
     if not all([x.shape[axis] == envelope[0].shape[axis] for x in envelope]):
-        raise ValueError('Signals in list do not have compatible shapes')
+        raise ValueError("Signals in list do not have compatible shapes")
 
     n = envelope[0].shape[axis]
     if pad:
@@ -3074,9 +3074,9 @@ def compute_envelope(
         envelope = envelope[:norig]
 
     # (optional) smooth envelope
-    smooth_arg = dict(kernel='gaussian', bandwidth=-1.0)
+    smooth_arg = dict(kernel="gaussian", bandwidth=-1.0)
     smooth_arg.update(smooth_options)
-    if smooth_arg['bandwidth'] > 0:
+    if smooth_arg["bandwidth"] > 0:
         envelope = smooth1d(envelope, delta=1.0 / fs, **smooth_arg)
 
     return envelope
@@ -3145,7 +3145,7 @@ def segment_contains(segment, x, issorted=True, expand=None):
             if x[xp] < segment[sp, 0]:  # current x is before segment start
                 # find first x inside segment
                 idx = np.searchsorted(
-                    x[xp:], segment[sp, 0], side='left'
+                    x[xp:], segment[sp, 0], side="left"
                 )  # switch to 'right' to make left open interval
                 if (idx + xp) >= nx:  # no x inside segment found
                     break
@@ -3164,7 +3164,7 @@ def segment_contains(segment, x, issorted=True, expand=None):
 
             # find last x in segment and mark it
             xlastp = (
-                xp + np.searchsorted(x[xp:], segment[sp, 1], side='left') - 1
+                xp + np.searchsorted(x[xp:], segment[sp, 1], side="left") - 1
             )  # switch to 'right' to make right closed interval
             contains[sp, 1] = xlastp
 
@@ -3218,12 +3218,12 @@ def check_segments(x: np.ndarray, copy=False):
         else:
             x = np.asarray(x, copy=True)
     except TypeError:
-        raise ValueError('Cannot convert data to numpy array') from None
+        raise ValueError("Cannot convert data to numpy array") from None
 
     # The array needs to contain real values only.
     # Is this a proper general test for numbers?
     if not np.isrealobj(x):
-        raise ValueError('Values are not real numbers')
+        raise ValueError("Values are not real numbers")
 
     # The array has to have two dimensions of shape(X,2), where X>=0.
     # As a special case, a one dimensional vector of at least length two is considered
@@ -3234,22 +3234,22 @@ def check_segments(x: np.ndarray, copy=False):
     elif x.ndim == 1 and len(x) > 1:
         x = np.vstack((x[0:-1], x[1:])).T
     elif x.ndim != 2 or x.shape[1] != 2:
-        raise ValueError('Incorrect array size')
+        raise ValueError("Incorrect array size")
 
     # Negative duration segments are not allowed.
     if np.any(np.diff(x, axis=1) < 0):
-        raise ValueError('Segment durations cannot be negative')
+        raise ValueError("Segment durations cannot be negative")
 
     return x
 
 
-def ripple_envelope(signals, band='ripple', **kwargs):
+def ripple_envelope(signals, band="ripple", **kwargs):
 
-    smooth_options = dict(kernel='gaussian', bandwidth=0.0075)
-    smooth_options.update(kwargs.pop('smooth_options', {}))
+    smooth_options = dict(kernel="gaussian", bandwidth=0.0075)
+    smooth_options.update(kwargs.pop("smooth_options", {}))
 
-    filter_options = dict(transition_width='25%', attenuation=60)
-    filter_options.update(kwargs.pop('filter_options', {}))
+    filter_options = dict(transition_width="25%", attenuation=60)
+    filter_options.update(kwargs.pop("filter_options", {}))
 
     return compute_envelope(
         signals,
@@ -3264,7 +3264,7 @@ def detect_ripples(
     time: npt.NDArray[np.float64],
     signals: npt.NDArray[np.float64],
     axis: int = -1,
-    band: str | Sequence[float] = 'ripple',
+    band: str | Sequence[float] = "ripple",
     isenvelope: bool = False,
     isfiltered: bool = False,
     segments: Any = None,
@@ -3316,7 +3316,7 @@ def detect_ripples(
     else:
         envelope = signals
         if envelope.ndim != 1:
-            raise ValueError('Envelope needs to be a 1D vector.')
+            raise ValueError("Envelope needs to be a 1D vector.")
 
     search_segments = check_segments(
         segments if segments is not None else [-np.inf, np.inf]
@@ -3340,7 +3340,7 @@ def detect_ripples(
     high = float(calc_threshold[-1])
 
     ripple_peak_time, _ = localmaxima(
-        envelope, x=time, method='gradient', yrange=[high, np.inf]
+        envelope, x=time, method="gradient", yrange=[high, np.inf]
     )
 
     ripple_segments = detect_mountains(

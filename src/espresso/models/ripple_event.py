@@ -17,10 +17,10 @@ class RippleEvent(BaseModel):
     peak_sec: float
     """Max amplitude position in seconds relative to recording start."""
 
-    @field_validator('end_sec')
+    @field_validator("end_sec")
     @classmethod
     def end_must_be_after_start(cls, v: float, info):
         """Validates that the relative offset time occurs after the onset."""
-        if 'start_sec' in info.data and v <= info.data['start_sec']:
-            raise ValueError('end_sec must be greater than start_sec')
+        if "start_sec" in info.data and v <= info.data["start_sec"]:
+            raise ValueError("end_sec must be greater than start_sec")
         return v

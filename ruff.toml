@@ -12,4 +12,4 @@ select = [
 ]
 
 [format]
-quote-style = "single"
+quote-style = "double"

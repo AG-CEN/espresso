@@ -35,6 +35,7 @@ dependencies = [
     "PyQt6>=6.11.0",
     "pyqtgraph>=0.14.0",
     "pydantic>=2.13.4",
+    "reactivex>=4.1.0",
 ]
 
 [project.urls]
